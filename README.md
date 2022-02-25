@@ -1,6 +1,9 @@
 # Powerball history data
 
+#### 显示历史数据
+#### 显示前7球区间
+
 # To do (features for predicting)
-- 显示前7球区间
+- 号码散布图
 - ?
 - ?
