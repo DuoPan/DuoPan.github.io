@@ -9,7 +9,15 @@
 </head>
 
 <body>
+  <div style="display: flex; margin-left: 10px; margin-top: 10px;">
+    <button id='aiPredictBtn'>AI predict next draw</button>
+    <button>feature 2</button>
+    <button>feature 3</button>
+  </div>
   <div class="wrapper">
+
+
+
     <div class="table" id="data">
 
       <div class="row header green">
@@ -83,6 +91,12 @@
       `;
       dataElem.appendChild(rowElem);
     }
+
+    const aiPredictBtn = document.getElementById("aiPredictBtn");
+    aiPredictBtn.onclick = (e) => {
+      alert("正在研发")
+    }
   </script>
 </body>
+
 </html>
