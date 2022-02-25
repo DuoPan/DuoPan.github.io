@@ -11,12 +11,9 @@
 <body>
   <div style="display: flex; margin-left: 10px; margin-top: 10px;">
     <button id='aiPredictBtn'>AI predict next draw</button>
-    <button>feature 2</button>
-    <button>feature 3</button>
+    <button id='ballBlockBtn'>7球区间</button>
   </div>
   <div class="wrapper">
-
-
 
     <div class="table" id="data">
 
@@ -57,44 +54,76 @@
   <script type="module">
     import db from './db.js';
     const dataElem = document.getElementById("data");
-    for (let rowData of db) {
-      const rowElem = document.createElement('div');
-      rowElem.classList.add('row');
-      rowElem.innerHTML = `
-          <div class="cell">
-            ${rowData[0]}
-          </div>
-          <div class="cell">
-            ${rowData[1]}
-          </div>
-          <div class="cell">
-            ${rowData[2]}
-          </div>
-          <div class="cell">
-            ${rowData[3]}
-          </div>
-          <div class="cell">
-            ${rowData[4]}
-          </div>
-          <div class="cell">
-            ${rowData[5]}
-          </div>
-          <div class="cell">
-            ${rowData[6]}
-          </div>
-          <div class="cell">
-            ${rowData[7]}
-          </div>
-          <div class="cell">
-            ${rowData[8]}
-          </div>
-      `;
-      dataElem.appendChild(rowElem);
+    let isEnableBallBlock = false;
+
+    const calcBallBlock = (num) => {
+      if (!isEnableBallBlock) {
+        return "";
+      }
+
+      if (num <= 12) {
+        return "small";
+      } else if (num >= 25) {
+        return "large";
+      } else {
+        return "medium";
+      }
     }
+
+    const removeDataChild = () => {
+      document.querySelectorAll(".remove").forEach(el => el.remove());
+    }
+
+    const processData = () => {
+      for (let rowData of db) {
+        const rowElem = document.createElement('div');
+        rowElem.classList.add('row');
+        rowElem.classList.add('remove');
+        rowElem.innerHTML = `
+            <div class="cell">
+              ${rowData[0]}
+            </div>
+            <div class="cell ${calcBallBlock(rowData[1])}">
+              ${rowData[1]}
+            </div>
+            <div class="cell ${calcBallBlock(rowData[2])}">
+              ${rowData[2]}
+            </div>
+            <div class="cell ${calcBallBlock(rowData[3])}">
+              ${rowData[3]}
+            </div>
+            <div class="cell ${calcBallBlock(rowData[4])}">
+              ${rowData[4]}
+            </div>
+            <div class="cell ${calcBallBlock(rowData[5])}">
+              ${rowData[5]}
+            </div>
+            <div class="cell ${calcBallBlock(rowData[6])}">
+              ${rowData[6]}
+            </div>
+            <div class="cell ${calcBallBlock(rowData[7])}">
+              ${rowData[7]}
+            </div>
+            <div class="cell">
+              ${rowData[8]}
+            </div>
+        `;
+        dataElem.appendChild(rowElem);
+      }
+    };
+
+    processData();
 
     const aiPredictBtn = document.getElementById("aiPredictBtn");
     aiPredictBtn.onclick = (e) => {
       alert("正在研发")
+    }
+
+    const ballBlockBtn = document.getElementById("ballBlockBtn");
+    ballBlockBtn.onclick = (e) => {
+      removeDataChild();
+      isEnableBallBlock = !isEnableBallBlock;
+      processData();
     }
   </script>
 </body>

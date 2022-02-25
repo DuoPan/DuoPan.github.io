@@ -62,3 +62,12 @@ body {
     display: block;
   }
 }
+.cell.small {
+  background: #e2e290;
+}
+.cell.medium {
+  background: #da8787;
+}
+.cell.large {
+  background: #8ce27d;
+}
