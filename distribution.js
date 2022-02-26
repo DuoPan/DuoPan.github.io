@@ -192,9 +192,20 @@ const processData = () => {
       [...Array(35).keys()].map(a => {
         const cellElem = document.createElement('div');
         cellElem.classList.add('cell');
-        cellElem.innerText = a + 1;
         if (rowDataCopy.includes((a + 1).toString())) {
-          cellElem.classList.add('blue');
+          const highlightElem = document.createElement('div');
+          highlightElem.innerText = a + 1;
+          highlightElem.style.background = '#1730e4';
+          highlightElem.style.display = 'flex';
+          highlightElem.style.justifyContent = 'center';
+          highlightElem.style.alignItems = 'center';
+          highlightElem.style.borderRadius = '50%';
+          highlightElem.style.height = '27px';
+          highlightElem.style.width = '27px';
+          highlightElem.style.color = 'white';
+          cellElem.appendChild(highlightElem);
+        } else {
+          cellElem.innerText = a + 1;
         }
         rowElem.appendChild(cellElem);
       });
@@ -202,9 +213,20 @@ const processData = () => {
       [...Array(20).keys()].map(a => {
         const cellElem = document.createElement('div');
         cellElem.classList.add('cell');
-        cellElem.innerText = a + 1;
         if (pb === (a + 1).toString()) {
-          cellElem.classList.add('blue');
+          const highlightElem = document.createElement('div');
+          highlightElem.innerText = a + 1;
+          highlightElem.style.background = '#1730e4';
+          highlightElem.style.display = 'flex';
+          highlightElem.style.justifyContent = 'center';
+          highlightElem.style.alignItems = 'center';
+          highlightElem.style.borderRadius = '50%';
+          highlightElem.style.height = '27px';
+          highlightElem.style.width = '27px';
+          highlightElem.style.color = 'white';
+          cellElem.appendChild(highlightElem);
+        } else {
+          cellElem.innerText = a + 1;
         }
         rowElem.appendChild(cellElem);
       });
