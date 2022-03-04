@@ -15,6 +15,7 @@
     <button id='distributionBtn'>散布图</button>
     <button id='continousNumberBtn'>连续数字</button>
     <button id='statisticsBtn'>统计数据</button>
+    <button id='pbPreviousBtn'>PB出现过</button>
   </div>
   <div class="wrapper" id="wrapper" ></div>
   <script src='http://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.3/jquery.min.js'></script>
@@ -68,6 +69,16 @@
     statisticsBtn.onclick = (e) => {
       removeData();
       processStatistics();
+    }
+  </script>
+
+  <script type="module">
+    import pbPrevious from './pbPrevious.js';
+    import { removeData } from './utils.js';
+    const statisticsBtn = document.getElementById("pbPreviousBtn");
+    statisticsBtn.onclick = (e) => {
+      removeData();
+      pbPrevious();
     }
   </script>
 
