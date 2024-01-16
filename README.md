@@ -1,5 +1,7 @@
 # Powerball history data
-
+how to run
+contrl shift l
+用插件
 ## Functions
 #### 显示历史数据
 #### 显示前7球区间
