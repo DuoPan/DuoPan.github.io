@@ -7,6 +7,7 @@ import renderDistribution from "./distribution.js";
 import renderHotNumbers from "./hotNumbers.js";
 import renderMissingNumbers from "./missingNumbers.js";
 import renderTrendNumbers from "./trendNumbers.js";
+import renderCharts from "./charts.js";
 import renderContinuous from "./continousNumber.js";
 import renderStatistics from "./statistics.js";
 import renderPb from "./pbPrevious.js";
@@ -19,6 +20,7 @@ const views = {
   hot: { render: renderHotNumbers, titleKey: "view.hot" },
   missing: { render: renderMissingNumbers, titleKey: "view.missing" },
   trend: { render: renderTrendNumbers, titleKey: "view.trend" },
+  charts: { render: renderCharts, titleKey: "view.charts" },
   continuous: { render: renderContinuous, titleKey: "view.continuous" },
   statistics: { render: renderStatistics, titleKey: "view.statistics" },
   pb: { render: renderPb, titleKey: "view.pb" }
@@ -35,6 +37,26 @@ const filters = {
 
 let currentView = "history";
 let heatWindow = 100;
+let historyIndex = 0;
+let chartWindow = 100;
+
+const buildDrawStats = (row) => {
+  if (!row) return null;
+  const nums = row.slice(1, 8).map(Number);
+  const sum = nums.reduce((acc, n) => acc + n, 0);
+  const average = sum / nums.length;
+  const odds = nums.filter((n) => n % 2 === 1).length;
+  const evens = nums.length - odds;
+  const low = nums.filter((n) => n <= 17).length;
+  const high = nums.length - low;
+  const buckets = [
+    nums.filter((n) => n >= 1 && n <= 10).length,
+    nums.filter((n) => n >= 11 && n <= 20).length,
+    nums.filter((n) => n >= 21 && n <= 30).length,
+    nums.filter((n) => n >= 31 && n <= 35).length
+  ];
+  return { sum, average, odds, evens, low, high, buckets };
+};
 
 const getFiltersFromUI = () => {
   const dateFrom = document.getElementById("filterDateFrom");
@@ -77,10 +99,76 @@ const updateOverview = (data) => {
   }
 };
 
-const updateOverviewExtra = (viewKey) => {
+const updateOverviewExtra = (viewKey, data) => {
   const overviewExtra = document.getElementById("overviewExtra");
   if (!overviewExtra) return;
   overviewExtra.innerHTML = "";
+  if (viewKey === "history") {
+    const rows = data || [];
+    const safeIndex = Math.min(Math.max(historyIndex, 0), Math.max(rows.length - 1, 0));
+    const selectedRow = rows[safeIndex];
+    const stats = buildDrawStats(selectedRow);
+    const options = rows.slice(0, 50).map((row, index) => {
+      const label = row ? row[0] : "";
+      return `<option value="${index}">${label}</option>`;
+    }).join("");
+    overviewExtra.innerHTML = `
+      <div class="overview-card">
+        <div class="overview-label">${t("overview.structure")}</div>
+        <select id="historySelect" class="legend-select">
+          ${options}
+        </select>
+        <div class="legend-desc">${t("overview.structureDesc")}</div>
+        ${stats ? `
+          <div class="mini-grid">
+            <div class="mini-item">
+              <div class="mini-label">${t("structure.sum")}</div>
+              <div class="mini-value">${stats.sum}</div>
+            </div>
+            <div class="mini-item">
+              <div class="mini-label">${t("structure.avg")}</div>
+              <div class="mini-value">${stats.average.toFixed(1)}</div>
+            </div>
+            <div class="mini-item">
+              <div class="mini-label">${t("structure.oddEven")}</div>
+              <div class="mini-value">${stats.odds}/${stats.evens}</div>
+            </div>
+            <div class="mini-item">
+              <div class="mini-label">${t("structure.lowHigh")}</div>
+              <div class="mini-value">${stats.low}/${stats.high}</div>
+            </div>
+          </div>
+          <div class="mini-bars">
+            <div class="mini-bar">
+              <span>1-10</span>
+              <span>${stats.buckets[0]}</span>
+            </div>
+            <div class="mini-bar">
+              <span>11-20</span>
+              <span>${stats.buckets[1]}</span>
+            </div>
+            <div class="mini-bar">
+              <span>21-30</span>
+              <span>${stats.buckets[2]}</span>
+            </div>
+            <div class="mini-bar">
+              <span>31-35</span>
+              <span>${stats.buckets[3]}</span>
+            </div>
+          </div>
+        ` : ""}
+      </div>
+    `;
+    const select = document.getElementById("historySelect");
+    if (select) {
+      select.value = String(safeIndex);
+      select.addEventListener("change", () => {
+        historyIndex = Number(select.value);
+        updateOverviewExtra("history", data);
+      });
+    }
+    return;
+  }
   if (viewKey === "block") {
     overviewExtra.innerHTML = `
       <div class="overview-card">
@@ -154,6 +242,40 @@ const updateOverviewExtra = (viewKey) => {
       select.addEventListener("change", () => {
         heatWindow = Number(select.value);
         renderView("distribution");
+      });
+    }
+    return;
+  }
+  if (viewKey === "charts") {
+    overviewExtra.innerHTML = `
+      <div class="overview-card">
+        <div class="overview-label">${t("overview.chartWindow")}</div>
+        <select id="chartWindowSelect" class="legend-select">
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="300">300</option>
+          <option value="9999">${t("overview.heatAll")}</option>
+        </select>
+        <div class="legend-desc">${t("overview.chartWindowDesc")}</div>
+      </div>
+      <div class="overview-card">
+        <div class="overview-label">${t("overview.explain")}</div>
+        <div class="legend">
+          <div class="legend-item">
+            <div class="legend-text">
+              <div class="legend-title">${t("view.charts")}</div>
+              <div class="legend-desc">${t("view.chartsDesc")}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    const select = document.getElementById("chartWindowSelect");
+    if (select) {
+      select.value = String(chartWindow);
+      select.addEventListener("change", () => {
+        chartWindow = Number(select.value);
+        renderView("charts");
       });
     }
     return;
@@ -257,9 +379,9 @@ const renderView = (viewKey) => {
   }
   removeData();
   document.getElementById("viewTitle").textContent = t(views[viewKey].titleKey);
-  views[viewKey].render({ data: filtered, t, filters, frequency: heatFrequency, heatWindow });
+  views[viewKey].render({ data: filtered, t, filters, frequency: heatFrequency, heatWindow, chartWindow });
   updateOverview(filtered);
-  updateOverviewExtra(viewKey);
+  updateOverviewExtra(viewKey, filtered);
   setActiveMenu(viewKey);
 };
 
