@@ -1,22 +1,3 @@
-import db from './db.js';
-
-const isContinous = (nums, index) => {
-  // index -> [1, 7]
-  if (index > 1 && index < 7 && 
-      (Number(nums[index]) + 1 === Number(nums[index + 1]) ||
-        Number(nums[index]) - 1 === Number(nums[index - 1])
-      )
-  ) {
-    return "medium";
-  } else if (index === 7 && Number(nums[index]) - 1 === Number(nums[index - 1])) {
-    return "medium";
-  } else if (index === 1 && Number(nums[index]) + 1 === Number(nums[index + 1])) {
-    return "medium";
-  } else {
-    return "";
-  }
-};
-
 const getContinousColors = (nums) => {
   let colors = {};
   let useFirstColor = false;
@@ -44,15 +25,16 @@ const getContinousColors = (nums) => {
   return colors;
 };
 
-const processData = () => {
+const renderContinuous = ({ data, t }) => {
     const wrapperElem = document.getElementById("wrapper");
     const dataElem = document.createElement('div');
     dataElem.classList.add('table');
     dataElem.classList.add('remove');
+    dataElem.classList.add('continuous-table');
     dataElem.innerHTML = `
-      <div class="row header green">
+      <div class="row header">
         <div class="cell">
-          Date
+          ${t("table.date")}
         </div>
         <div class="cell">
           #1
@@ -76,13 +58,13 @@ const processData = () => {
           #7
         </div>
         <div class="cell">
-          PB
+          ${t("table.pb")}
         </div>
       </div>
     `;
     wrapperElem.appendChild(dataElem);
 
-    for (let rowData of db) {
+    for (let rowData of data) {
       const rowElem = document.createElement('div');
       rowElem.classList.add('row');
       const colors = getContinousColors([Number(rowData[1]), Number(rowData[2]), Number(rowData[3]), 
@@ -120,4 +102,4 @@ const processData = () => {
     }
 };
 
-export default processData;
+export default renderContinuous;

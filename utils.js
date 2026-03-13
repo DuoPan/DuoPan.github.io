@@ -4,8 +4,14 @@ export const removeData = () => {
 
 export const highlightBtn = (id) => {
     const menuBtns = document.getElementsByClassName("menuBtn");
-    // menuBtns.forEach(btn => btn.style.backgroundColor = 'red');
     for (const btn of menuBtns) {
-        btn.style.backgroundColor = btn.id === id ? '#00ea4e' : '';
+        btn.classList.toggle("is-active", btn.id === id);
+    }
+};
+
+export const setActiveMenu = (viewKey) => {
+    const menuBtns = document.getElementsByClassName("menuBtn");
+    for (const btn of menuBtns) {
+        btn.classList.toggle("is-active", btn.dataset.view === viewKey);
     }
 };

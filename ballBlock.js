@@ -1,5 +1,3 @@
-import db from './db.js';
-
 const calcBallBlock = (num) => {
     if (num <= 12) {
       return "small";
@@ -10,15 +8,15 @@ const calcBallBlock = (num) => {
     }
 };
 
-const processData = () => {
+const renderBallBlock = ({ data, t }) => {
     const wrapperElem = document.getElementById("wrapper");
     const dataElem = document.createElement('div');
     dataElem.classList.add('table');
     dataElem.classList.add('remove');
     dataElem.innerHTML = `
-      <div class="row header green">
+      <div class="row header">
         <div class="cell">
-          Date
+          ${t("table.date")}
         </div>
         <div class="cell">
           #1
@@ -42,13 +40,13 @@ const processData = () => {
           #7
         </div>
         <div class="cell">
-          PB
+          ${t("table.pb")}
         </div>
       </div>
     `;
     wrapperElem.appendChild(dataElem);
 
-    for (let rowData of db) {
+    for (let rowData of data) {
       const rowElem = document.createElement('div');
       rowElem.classList.add('row');
       rowElem.innerHTML = `
@@ -84,4 +82,4 @@ const processData = () => {
     }
 };
 
-export default processData;
+export default renderBallBlock;

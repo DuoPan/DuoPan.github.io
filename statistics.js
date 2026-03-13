@@ -1,5 +1,3 @@
-import db from './db.js';
-
 var arr = {	
 	max: function(array) {
 		return Math.max.apply(null, array);
@@ -95,42 +93,42 @@ const getStatistics = (nums) => {
     results.push(arr.max(array));
     results.push(arr.min(array));
     results.push(arr.mean(array).toFixed(3));
-    results.push(nums[4]);
+    results.push(arr.median(array).toFixed(3));
     results.push(arr.standardDeviation(array).toFixed(3));
 
     return results;
 };
 
-const processData = () => {
+const renderStatistics = ({ data, t }) => {
     const wrapperElem = document.getElementById("wrapper");
     const dataElem = document.createElement('div');
     dataElem.classList.add('table');
     dataElem.classList.add('remove');
     dataElem.innerHTML = `
-      <div class="row header green">
+      <div class="row header">
         <div class="cell">
-          Date
+          ${t("table.date")}
         </div>
         <div class="cell">
-          Max
+          ${t("table.max")}
         </div>
         <div class="cell">
-          Min
+          ${t("table.min")}
         </div>
         <div class="cell">
-          Avgrage
+          ${t("table.average")}
         </div>
         <div class="cell">
-          Median
+          ${t("table.median")}
         </div>
         <div class="cell">
-          SD
+          ${t("table.sd")}
         </div>
       </div>
     `;
     wrapperElem.appendChild(dataElem);
 
-    for (let rowData of db) {
+    for (let rowData of data) {
       const data = getStatistics(rowData);
       const rowElem = document.createElement('div');
       rowElem.classList.add('row');
@@ -158,4 +156,4 @@ const processData = () => {
     }
 };
 
-export default processData;
+export default renderStatistics;

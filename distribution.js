@@ -1,14 +1,14 @@
-import db from './db.js';
+import { getHeatColor } from "./data.js";
 
-const processData = () => {
+const renderDistribution = ({ data, t, frequency }) => {
     const wrapperElem = document.getElementById("wrapper");
     const dataElem = document.createElement('div');
     dataElem.classList.add('table');
     dataElem.classList.add('remove');
     dataElem.innerHTML = `
-      <div class="row header green">
+      <div class="row header">
         <div class="cell">
-          Date
+          ${t("table.date")}
         </div>
         <div class="cell">
           #1
@@ -32,153 +32,46 @@ const processData = () => {
           #7
         </div>
         <div class="cell">
-          #8
-        </div>
-        <div class="cell">
-          #9
-        </div>
-        <div class="cell">
-          #10
-        </div>
-        <div class="cell">
-          #11
-        </div>
-        <div class="cell">
-          #12
-        </div>
-        <div class="cell">
-          #13
-        </div>
-        <div class="cell">
-          #14
-        </div>
-        <div class="cell">
-          #15
-        </div>
-        <div class="cell">
-          #16
-        </div>
-        <div class="cell">
-          #17
-        </div>
-        <div class="cell">
-          #18
-        </div>
-        <div class="cell">
-          #19
-        </div>
-        <div class="cell">
-          #20
-        </div>
-        <div class="cell">
-          #21
-        </div>
-        <div class="cell">
-          #22
-        </div>
-        <div class="cell">
-          #23
-        </div>
-        <div class="cell">
-          #24
-        </div>
-        <div class="cell">
-          #25
-        </div>
-        <div class="cell">
-          #26
-        </div>
-        <div class="cell">
-          #27
-        </div>
-        <div class="cell">
-          #28
-        </div>
-        <div class="cell">
-          #29
-        </div>
-        <div class="cell">
-          #30
-        </div>
-        <div class="cell">
-          #31
-        </div>
-        <div class="cell">
-          #32
-        </div>
-        <div class="cell">
-          #33
-        </div>
-        <div class="cell">
-          #34
-        </div>
-        <div class="cell">
-          #35
-        </div>
-        <div class="cell">
-          PB#1
-        </div>
-        <div class="cell">
-          PB#2
-        </div>
-        <div class="cell">
-          PB#3
-        </div>
-        <div class="cell">
-          PB#4
-        </div>
-        <div class="cell">
-          PB#5
-        </div>
-        <div class="cell">
-          PB#6
-        </div>
-        <div class="cell">
-          PB#7
-        </div>
-        <div class="cell">
-          PB#8
-        </div>
-        <div class="cell">
-          PB#9
-        </div>
-        <div class="cell">
-          PB#10
-        </div>
-        <div class="cell">
-          PB#11
-        </div>
-        <div class="cell">
-          PB#12
-        </div>
-        <div class="cell">
-          PB#13
-        </div>
-        <div class="cell">
-          PB#14
-        </div>
-        <div class="cell">
-          PB#15
-        </div>
-        <div class="cell">
-          PB#16
-        </div>
-        <div class="cell">
-          PB#17
-        </div>
-        <div class="cell">
-          PB#18
-        </div>
-        <div class="cell">
-          PB#19
-        </div>
-        <div class="cell">
-          PB#20
+          ${t("table.pb")}
         </div>
       </div>
     `;
     wrapperElem.appendChild(dataElem);
-    for (let rowData of db) {
+    const maxMain = frequency?.maxMain || 1;
+    const maxPb = frequency?.maxPb || 1;
+
+    const renderBall = (value, intensityStyle) => {
+      const ball = document.createElement("span");
+      ball.classList.add("ball");
+      if (intensityStyle) {
+        ball.style.background = intensityStyle.background;
+        ball.style.borderColor = intensityStyle.borderColor;
+        ball.style.color = intensityStyle.color;
+        ball.style.boxShadow = intensityStyle.boxShadow;
+      }
+      ball.textContent = value;
+      return ball;
+    };
+
+    const buildHotCoolSets = (counts, maxNumber, topN) => {
+      const items = [];
+      for (let i = 1; i <= maxNumber; i += 1) {
+        items.push({ num: i, count: counts[i] || 0 });
+      }
+      const sorted = [...items].sort((a, b) => b.count - a.count);
+      const hotThreshold = sorted[Math.min(topN - 1, sorted.length - 1)]?.count ?? 0;
+      const coolThreshold = [...sorted].reverse()[Math.min(topN - 1, sorted.length - 1)]?.count ?? 0;
+      const hotSet = new Set(items.filter((x) => x.count > 0 && x.count >= hotThreshold).map((x) => x.num));
+      const coolSet = new Set(items.filter((x) => x.count > 0 && x.count <= coolThreshold).map((x) => x.num));
+      return { hotSet, coolSet };
+    };
+
+    const topNMain = 5;
+    const topNPb = 3;
+    const { hotSet: hotMain, coolSet: coolMain } = buildHotCoolSets(frequency?.main || {}, 35, topNMain);
+    const { hotSet: hotPb, coolSet: coolPb } = buildHotCoolSets(frequency?.pb || {}, 20, topNPb);
+
+    for (let rowData of data) {
       let rowDataCopy = [...rowData];
       const pb = rowDataCopy.pop();
       const rowElem = document.createElement('div');
@@ -189,50 +82,49 @@ const processData = () => {
       dateElem.innerText = rowDataCopy[0];
       rowElem.appendChild(dateElem);
 
-      [...Array(35).keys()].map(a => {
+      rowDataCopy.slice(1).forEach((value) => {
         const cellElem = document.createElement('div');
         cellElem.classList.add('cell');
-        if (rowDataCopy.includes((a + 1).toString())) {
-          const highlightElem = document.createElement('div');
-          highlightElem.innerText = a + 1;
-          highlightElem.style.background = '#1730e4';
-          highlightElem.style.display = 'flex';
-          highlightElem.style.justifyContent = 'center';
-          highlightElem.style.alignItems = 'center';
-          highlightElem.style.borderRadius = '50%';
-          highlightElem.style.height = '27px';
-          highlightElem.style.width = '27px';
-          highlightElem.style.color = 'white';
-          cellElem.appendChild(highlightElem);
+        const num = Number(value);
+        const count = frequency?.main?.[num] || 0;
+        if (count > 0 && (hotMain.has(num) || coolMain.has(num))) {
+          const ratio = maxMain ? count / maxMain : 0;
+          const color = hotMain.has(num) ? "rgba(239, 83, 80, 0.22)" : "rgba(91, 184, 255, 0.22)";
+          cellElem.appendChild(renderBall(num, {
+            background: color,
+            borderColor: hotMain.has(num) ? "rgba(239, 83, 80, 0.6)" : "rgba(91, 184, 255, 0.6)",
+            color: "#132235",
+            boxShadow: hotMain.has(num)
+              ? "0 6px 12px rgba(239, 83, 80, 0.2)"
+              : "0 6px 12px rgba(91, 184, 255, 0.2)"
+          }));
         } else {
-          cellElem.innerText = a + 1;
+          cellElem.innerText = value;
         }
         rowElem.appendChild(cellElem);
       });
 
-      [...Array(20).keys()].map(a => {
-        const cellElem = document.createElement('div');
-        cellElem.classList.add('cell');
-        if (pb === (a + 1).toString()) {
-          const highlightElem = document.createElement('div');
-          highlightElem.innerText = a + 1;
-          highlightElem.style.background = '#1730e4';
-          highlightElem.style.display = 'flex';
-          highlightElem.style.justifyContent = 'center';
-          highlightElem.style.alignItems = 'center';
-          highlightElem.style.borderRadius = '50%';
-          highlightElem.style.height = '27px';
-          highlightElem.style.width = '27px';
-          highlightElem.style.color = 'white';
-          cellElem.appendChild(highlightElem);
-        } else {
-          cellElem.innerText = a + 1;
-        }
-        rowElem.appendChild(cellElem);
-      });
+      const pbCell = document.createElement('div');
+      pbCell.classList.add('cell');
+      const pbNum = Number(pb);
+      const pbCount = frequency?.pb?.[pbNum] || 0;
+      if (pbCount > 0 && (hotPb.has(pbNum) || coolPb.has(pbNum))) {
+        const color = hotPb.has(pbNum) ? "rgba(239, 83, 80, 0.22)" : "rgba(91, 184, 255, 0.22)";
+        pbCell.appendChild(renderBall(pbNum, {
+          background: color,
+          borderColor: hotPb.has(pbNum) ? "rgba(239, 83, 80, 0.6)" : "rgba(91, 184, 255, 0.6)",
+          color: "#132235",
+          boxShadow: hotPb.has(pbNum)
+            ? "0 6px 12px rgba(239, 83, 80, 0.2)"
+            : "0 6px 12px rgba(91, 184, 255, 0.2)"
+        }));
+      } else {
+        pbCell.innerText = pb;
+      }
+      rowElem.appendChild(pbCell);
 
       dataElem.appendChild(rowElem);
     }
 };
 
-export default processData;
+export default renderDistribution;
