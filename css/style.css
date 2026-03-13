@@ -408,6 +408,41 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.pagination {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(45, 160, 210, 0.18);
+}
+
+.page-info {
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.page-btn {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .chart-card {
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(45, 160, 210, 0.15);
@@ -567,5 +602,9 @@ body {
 
   .chart-grid.pies {
     grid-template-columns: 1fr;
+  }
+
+  .pagination {
+    flex-direction: column;
   }
 }

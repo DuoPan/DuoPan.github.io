@@ -39,6 +39,9 @@ let currentView = "history";
 let heatWindow = 100;
 let historyIndex = 0;
 let chartWindow = 100;
+const pageSize = 50;
+const pagedViews = new Set(["history", "block", "distribution", "continuous", "statistics", "pb"]);
+const paginationState = {};
 
 const buildDrawStats = (row) => {
   if (!row) return null;
@@ -378,11 +381,57 @@ const renderView = (viewKey) => {
     heatFrequency = buildFrequencyMap(heatData);
   }
   removeData();
+  let displayData = filtered;
+  let page = paginationState[viewKey] || 1;
+  let totalPages = 1;
+  if (pagedViews.has(viewKey)) {
+    totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    page = Math.min(Math.max(page, 1), totalPages);
+    paginationState[viewKey] = page;
+    const start = (page - 1) * pageSize;
+    const end = Math.min(start + pageSize, filtered.length);
+    displayData = filtered.slice(start, end);
+  }
   document.getElementById("viewTitle").textContent = t(views[viewKey].titleKey);
-  views[viewKey].render({ data: filtered, t, filters, frequency: heatFrequency, heatWindow, chartWindow });
+  views[viewKey].render({ data: displayData, t, filters, frequency: heatFrequency, heatWindow, chartWindow });
   updateOverview(filtered);
   updateOverviewExtra(viewKey, filtered);
   setActiveMenu(viewKey);
+  if (pagedViews.has(viewKey)) {
+    renderPagination(viewKey, filtered.length, page, totalPages);
+  }
+  const wrapper = document.getElementById("wrapper");
+  if (wrapper) {
+    wrapper.scrollTop = 0;
+    wrapper.scrollLeft = 0;
+  }
+};
+
+const renderPagination = (viewKey, total, page, totalPages) => {
+  if (total <= pageSize || totalPages <= 1) return;
+  const wrapper = document.getElementById("wrapper");
+  if (!wrapper) return;
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
+  const pagination = document.createElement("div");
+  pagination.classList.add("pagination", "remove");
+  pagination.innerHTML = `
+    <button class="page-btn" data-dir="prev" ${page === 1 ? "disabled" : ""}>${t("pagination.prev")}</button>
+    <div class="page-info">
+      <div>${t("pagination.page")} ${page} / ${totalPages}</div>
+      <div>${t("pagination.range")} ${start}-${end} / ${total}</div>
+    </div>
+    <button class="page-btn" data-dir="next" ${page === totalPages ? "disabled" : ""}>${t("pagination.next")}</button>
+  `;
+  pagination.querySelectorAll(".page-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const dir = btn.getAttribute("data-dir");
+      const nextPage = dir === "prev" ? page - 1 : page + 1;
+      paginationState[viewKey] = Math.min(Math.max(nextPage, 1), totalPages);
+      renderView(viewKey);
+    });
+  });
+  wrapper.appendChild(pagination);
 };
 
 const bindMenu = () => {
