@@ -420,6 +420,88 @@ body {
   border: 1px solid rgba(45, 160, 210, 0.18);
 }
 
+.contact-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.contact-card {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(45, 160, 210, 0.15);
+  border-radius: 14px;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.contact-card.contact-wide {
+  grid-column: 1 / -1;
+}
+
+.contact-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.contact-text {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.contact-item {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.contact-label {
+  color: var(--muted);
+}
+
+.contact-value {
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.qr-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.qr-card {
+  background: rgba(240, 247, 255, 0.8);
+  border: 1px solid rgba(45, 160, 210, 0.12);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  text-align: center;
+}
+
+.qr-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.qr-image {
+  width: 140px;
+  height: 140px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px dashed rgba(45, 160, 210, 0.25);
+  background: #fff;
+}
+
+.qr-placeholder {
+  font-size: 11px;
+  color: var(--muted);
+  display: none;
+}
+
 .page-info {
   display: grid;
   gap: 2px;
@@ -606,5 +688,9 @@ body {
 
   .pagination {
     flex-direction: column;
+  }
+
+  .qr-grid {
+    grid-template-columns: 1fr;
   }
 }

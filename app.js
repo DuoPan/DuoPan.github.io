@@ -11,6 +11,7 @@ import renderCharts from "./charts.js";
 import renderContinuous from "./continousNumber.js";
 import renderStatistics from "./statistics.js";
 import renderPb from "./pbPrevious.js";
+import renderContact from "./contact.js";
 import { removeData, setActiveMenu } from "./utils.js";
 
 const views = {
@@ -23,7 +24,8 @@ const views = {
   charts: { render: renderCharts, titleKey: "view.charts" },
   continuous: { render: renderContinuous, titleKey: "view.continuous" },
   statistics: { render: renderStatistics, titleKey: "view.statistics" },
-  pb: { render: renderPb, titleKey: "view.pb" }
+  pb: { render: renderPb, titleKey: "view.pb" },
+  contact: { render: renderContact, titleKey: "view.contact" }
 };
 
 const filters = {
