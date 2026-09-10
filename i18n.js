@@ -241,6 +241,10 @@ const dictionaries = {
   }
 };
 
+export const registerTranslations = (copy) => {
+  for (const lang of ['zh', 'en']) Object.assign(dictionaries[lang], copy[lang] || {});
+};
+
 let currentLanguage = "zh";
 
 export const setLanguage = (lang) => {
@@ -251,9 +255,9 @@ export const setLanguage = (lang) => {
 
 export const getLanguage = () => currentLanguage;
 
-export const t = (key) => {
+export const t = (key, values = {}) => {
   const dict = dictionaries[currentLanguage] || dictionaries.zh;
-  return dict[key] || key;
+  return (dict[key] || key).replace(/\{(\w+)\}/g, (match, name) => Object.hasOwn(values, name) ? String(values[name]) : match);
 };
 
 export const applyI18n = (root = document) => {

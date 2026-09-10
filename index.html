@@ -1,60 +1,61 @@
 <!DOCTYPE html>
 <html lang="zh">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>彩票历史分析</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="description" content="澳洲 Powerball 历史数据分析：统一统计区间、号码频率、遗漏、趋势和开奖结构。">
+  <meta name="theme-color" content="#f5fbff">
+  <title>Powerball 历史分析</title>
+  <link rel="icon" href="favicon.ico">
   <link rel="stylesheet" href="css/style.css">
 </head>
-
 <body>
-  <div class="bg-grid" aria-hidden="true"></div>
+  <a class="skip-link" href="#mainContent" data-i18n="app.skip">跳到分析内容</a>
   <header class="topbar">
-    <div class="brand">
-      <div class="brand-title" data-i18n="title">彩票历史分析</div>
-      <div class="brand-sub" data-i18n="subtitle">数据舱 · 趋势 · 结构</div>
-    </div>
-    <div class="top-actions">
-      <div class="lang-toggle" role="group" aria-label="language switch">
-        <button class="chip is-active" data-lang="zh">中文</button>
-        <button class="chip" data-lang="en">EN</button>
-      </div>
-    </div>
+    <div class="brand"><h1 data-i18n="title">Powerball 历史分析</h1><p data-i18n="subtitle">澳洲 Powerball · 让历史数据更清楚</p></div>
+    <div class="lang-toggle" role="group" aria-label="Language"><button type="button" data-lang="zh">中文</button><button type="button" data-lang="en">EN</button></div>
   </header>
-
-  <nav class="menu">
-    <button id="historyDataBtn" class="menuBtn" data-view="history" data-i18n="view.history">历史数据</button>
-    <button id="ballBlockBtn" class="menuBtn" data-view="block" data-i18n="view.block">七球区间</button>
-    <button id="distributionBtn" class="menuBtn" data-view="distribution" data-i18n="view.distribution">分布热力</button>
-    <button id="hotBtn" class="menuBtn" data-view="hot" data-i18n="view.hot">热号</button>
-    <button id="missingBtn" class="menuBtn" data-view="missing" data-i18n="view.missing">遗漏</button>
-    <button id="trendBtn" class="menuBtn" data-view="trend" data-i18n="view.trend">趋势</button>
-    <button id="chartsBtn" class="menuBtn" data-view="charts" data-i18n="view.charts">图表</button>
-    <button id="continousNumberBtn" class="menuBtn" data-view="continuous" data-i18n="view.continuous">连续号码</button>
-    <button id="statisticsBtn" class="menuBtn" data-view="statistics" data-i18n="view.statistics">统计数据</button>
-    <button id="pbPreviousBtn" class="menuBtn" data-view="pb" data-i18n="view.pb">PB对比</button>
-    <button id="contactBtn" class="menuBtn" data-view="contact" data-i18n="view.contact">联系</button>
-  </nav>
-
-  <section class="dashboard">
-    <div class="panel overview">
-      <div class="panel-title" data-i18n="overview.title">概览</div>
-      <div id="overview" class="overview-grid"></div>
-      <div id="overviewExtra" class="overview-extra"></div>
+  <main class="app-shell" id="mainContent" tabindex="-1">
+    <section class="latest-draw" aria-labelledby="latestLabel">
+      <div><span class="eyebrow-label" id="latestLabel" data-i18n="app.latest">最新收录</span><strong id="latestDate">—</strong></div>
+      <div id="latestBalls" class="balls"></div>
+      <details class="source-details"><summary id="sourceSummary">正在读取数据状态…</summary><div id="sourceDetails"></div></details>
+    </section>
+    <nav class="primary-nav" aria-label="Main navigation">
+      <button type="button" data-group="history" data-i18n="app.navHistory">历史</button>
+      <button type="button" data-group="numbers" data-i18n="app.navNumbers">号码分析</button>
+      <button type="button" data-group="charts" data-i18n="view.charts">图表</button>
+      <button type="button" data-group="more" data-i18n="app.navMore">更多</button>
+    </nav>
+    <form id="rangeForm" class="range-toolbar">
+      <label class="field"><span data-i18n="app.range">分析范围</span><select id="rangeWindow" name="window"></select></label>
+      <div id="customDates" class="date-controls" hidden>
+        <label class="field"><span data-i18n="filters.dateFrom">起始日期</span><input id="dateFrom" type="date"></label>
+        <label class="field"><span data-i18n="filters.dateTo">结束日期</span><input id="dateTo" type="date"></label>
+        <button type="submit" class="button primary" data-i18n="app.apply">应用</button>
+      </div>
+      <div class="toolbar-actions"><button type="button" class="button" id="exportCsv" data-i18n="app.export">导出 CSV</button><button type="button" class="button" id="shareView" data-i18n="app.share">复制链接</button></div>
+      <p id="rangeError" class="form-error" role="alert" hidden></p>
+    </form>
+    <div class="workspace">
+      <section class="analysis-panel" aria-labelledby="viewTitle">
+        <nav id="subnav" class="subnav" aria-label="Analysis views"></nav>
+        <div class="view-heading"><div><h2 id="viewTitle"></h2><p id="sampleSummary" class="muted" aria-live="polite" aria-atomic="true"></p></div><div id="viewControls" class="view-controls"></div></div>
+        <p id="viewExplanation" class="view-explanation"></p>
+        <div id="wrapper" class="wrapper"><p class="empty-state">正在加载开奖记录…</p></div>
+        <div id="pagination" class="pagination"></div>
+      </section>
+      <aside class="context-panel">
+        <details id="watchPanel" open><summary data-i18n="app.watchlist">关注号码</summary><p class="muted" data-i18n="app.watchHelp">点击号码查看详情，点星号关注。关注不会改变统计样本。</p><div id="watchlist"></div></details>
+        <details id="presetsPanel"><summary data-i18n="app.presets">分析方案</summary><form id="presetForm"><label class="field"><span data-i18n="app.presetName">方案名称</span><input id="presetName" maxlength="40" required></label><button class="button" type="submit" data-i18n="app.savePreset">保存当前条件</button></form><div id="presetList"></div></details>
+        <details><summary data-i18n="app.methods">统计说明</summary><div class="method-notes"><p data-i18n="app.methodFrequency"></p><p data-i18n="app.methodMissing"></p><p data-i18n="app.methodRandom"></p><a href="https://help.thelott.com/hc/en-us/articles/4416863320217-How-do-I-play-the-Powerball-game" target="_blank" rel="noopener noreferrer" data-i18n="app.rules">官方玩法说明 ↗</a></div></details>
+      </aside>
     </div>
-
-    <div class="panel main">
-      <div class="panel-title" id="viewTitle"></div>
-      <div class="wrapper" id="wrapper"></div>
-    </div>
-  </section>
-
+    <footer class="footer"><span data-i18n="app.footer">历史统计 · 主球 7/35 · Powerball 1/20</span><span id="archiveSummary"></span></footer>
+  </main>
+  <dialog id="detailDialog" aria-labelledby="detailTitle"><div class="dialog-heading"><h2 id="detailTitle"></h2><button type="button" id="closeDetail" class="icon-button" aria-label="关闭">×</button></div><div id="detailBody"></div></dialog>
+  <div id="notification" class="notification" role="status" aria-live="polite"></div>
+  <noscript><p class="empty-state">请启用 JavaScript 以查看分析 / Enable JavaScript to view the analysis.</p></noscript>
   <script type="module" src="./app.js"></script>
 </body>
-
 </html>

@@ -31,45 +31,16 @@ const renderContact = ({ t }) => {
           <a class="donate-link" href="https://www.paypal.com/donate/?business=7YUMV5D8UREFC&no_recurring=0&item_name=All+donations+will+be+used+for+website+maintenance.&currency_code=AUD" target="_blank" rel="noopener noreferrer">
             ${t("donate.linkCta")}
           </a>
-          <button class="benefits-btn" id="benefitsBtn">${t("donate.benefitsCta")}</button>
+          <details class="support-notes"><summary>${t("donate.benefitsCta")}</summary><ul>
+            <li>${t("donate.benefit1")}</li><li>${t("donate.benefit2")}</li><li>${t("donate.benefit3")}</li>
+          </ul></details>
         </div>
-      </div>
-    </div>
-    <div class="benefits-overlay" id="benefitsOverlay" aria-hidden="true">
-      <div class="benefits-modal" role="dialog" aria-modal="true" aria-labelledby="benefitsTitle">
-        <div class="benefits-head">
-          <div class="benefits-title" id="benefitsTitle">${t("donate.benefitsTitle")}</div>
-          <button class="benefits-close" id="benefitsClose" aria-label="${t("donate.close")}">×</button>
-        </div>
-        <ul class="benefits-list">
-          <li>${t("donate.benefit1")}</li>
-          <li>${t("donate.benefit2")}</li>
-          <li>${t("donate.benefit3")}</li>
-        </ul>
       </div>
     </div>
   `;
 
   wrapperElem.appendChild(dataElem);
 
-  const overlay = document.getElementById("benefitsOverlay");
-  const openBtn = document.getElementById("benefitsBtn");
-  const closeBtn = document.getElementById("benefitsClose");
-  if (overlay && openBtn && closeBtn) {
-    const open = () => {
-      overlay.setAttribute("aria-hidden", "false");
-      overlay.classList.add("is-open");
-    };
-    const close = () => {
-      overlay.setAttribute("aria-hidden", "true");
-      overlay.classList.remove("is-open");
-    };
-    openBtn.addEventListener("click", open);
-    closeBtn.addEventListener("click", close);
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) close();
-    });
-  }
 };
 
 export default renderContact;

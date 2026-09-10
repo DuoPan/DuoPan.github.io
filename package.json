@@ -1,0 +1,13 @@
+{
+  "name": "powerball-history-dashboard",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test",
+    "validate": "node scripts/validate-data.js",
+    "update-data": "node scripts/update-data.js",
+    "serve": "python -m http.server 8765",
+    "build": "node scripts/stage-site.js"
+  }
+}
