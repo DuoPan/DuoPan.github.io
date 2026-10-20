@@ -99,3 +99,30 @@ test("storage failures return recoverable fallbacks and never block viewing the 
   assert.deepEqual(readStorage("state", DEFAULT_STATE), DEFAULT_STATE);
   assert.equal(writeStorage("state", DEFAULT_STATE), false);
 });
+
+test("game links round-trip supplementary state and old links stay Powerball", () => {
+  const state=sanitizeState({game:'ozlotto',view:'trend',pool:'supplementary',window:'all',lang:'en',page:2});
+  assert.deepEqual(stateFromHash(stateToHash(state)),state);
+  assert.equal(stateFromHash('#game=ozlotto').game,'ozlotto');
+  assert.equal(stateFromHash('#view=hot&pool=pb').game,'powerball');
+  assert.equal(stateFromHash('#game=unknown&view=history').game,'powerball');
+  assert.equal(sanitizeState({game:['ozlotto']}).game,'powerball');
+  assert.equal(sanitizeState({game:'ozlotto',view:'pb',pool:'pb'}).view,'history');
+  assert.equal(sanitizeState({game:'ozlotto',pool:'pb'}).pool,'main');
+  assert.equal(sanitizeState({game:'powerball',pool:'supplementary'}).pool,'main');
+});
+
+test("Oz watchlists validate both 47-number groups and ignore foreign pools", () => {
+  const input={main:[1,47,47,48],supplementary:[47,1,0,48,'3'],pb:[20]};
+  assert.deepEqual(sanitizeWatchlist(input,'ozlotto'),{main:[1,47],supplementary:[1,47]});
+  assert.deepEqual(sanitizeWatchlist(input),{main:[1],pb:[20]});
+});
+
+test("saved analyses are constrained to their storage game", () => {
+  const values=[{id:'a',name:'saved',state:{game:'powerball',view:'pb',pool:'pb'}}];
+  const oz=sanitizePresets(values,'ozlotto')[0].state;
+  assert.equal(oz.game,'ozlotto');
+  assert.equal(oz.view,'history');
+  assert.equal(oz.pool,'main');
+  assert.equal(sanitizePresets([{name:'old',state:{view:'hot',pool:'pb'}}])[0].state.game,'powerball');
+});

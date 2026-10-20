@@ -260,11 +260,11 @@ export const t = (key, values = {}) => {
   return (dict[key] || key).replace(/\{(\w+)\}/g, (match, name) => Object.hasOwn(values, name) ? String(values[name]) : match);
 };
 
-export const applyI18n = (root = document) => {
+export const applyI18n = (root = document, translate = t) => {
   root.querySelectorAll("[data-i18n]").forEach((node) => {
     const key = node.getAttribute("data-i18n");
     if (key) {
-      node.textContent = t(key);
+      node.textContent = translate(key);
     }
   });
 };

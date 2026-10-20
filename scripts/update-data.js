@@ -2,31 +2,26 @@ import { readFile, writeFile, rename, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { RULE_START, FIRST_DRAW_NUMBER, parseDrawDate, isoDate, normalizeRow, validateRows, parseDatabase, serializeDatabase } from "./data-utils.js";
+import { parseDrawDate, isoDate, normalizeRow, validateRows, parseDatabase, serializeDatabase } from "./data-utils.js";
+import { GAMES, getGame, expectedLatestDrawISO } from "../games.js";
 
+// Compatibility exports for existing Powerball callers.
 export const SOURCE_NAME = "Lotterywest — official Powerball results";
 export const SOURCE_URL = "https://www.lotterywest.wa.gov.au/results/frequency-charts";
-// This download is linked by the official frequency-charts UI. Its public
-// gameIds module identifies Australian Powerball as 5132. No login is needed.
 export const CSV_URL = "https://www.lotterywest.wa.gov.au/api/games/5132/results-csv";
 
-/** Thursday results are due by Friday noon in Sydney, including DST changes. */
-export function expectedLatestDrawDate(now = new Date()) {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Sydney", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23"
-  }).formatToParts(now).map(({ type, value }) => [type, value]));
-  const localDate = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
-  let daysSinceThursday = (localDate.getUTCDay() + 7 - 4) % 7;
-  if (daysSinceThursday === 0 || (daysSinceThursday === 1 && Number(parts.hour) < 12)) daysSinceThursday += 7;
-  localDate.setUTCDate(localDate.getUTCDate() - daysSinceThursday);
-  return localDate.toISOString().slice(0, 10);
+/** Results are due by noon on the day following the draw in Sydney local time. */
+export function expectedLatestDrawDate(now = new Date(), { game = "powerball" } = {}) {
+  return expectedLatestDrawISO(now, game);
 }
 
-export function assertSourceFreshness(rows, now = new Date()) {
-  const expected = expectedLatestDrawDate(now);
+export function assertSourceFreshness(rows, now = new Date(), { game = "powerball" } = {}) {
+  const config = getGame(game);
+  const expected = expectedLatestDrawDate(now, { game: config });
   const latest = rows.length ? isoDate(rows[0][0]) : null;
   if (!latest || latest < expected) {
-    throw new Error(`Official source is stale: latest ${latest || "unavailable"}; expected at least ${expected} after the Sydney Friday 12:00 publication deadline`);
+    const dueDay = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][config.dueDay];
+    throw new Error(`Official source is stale: latest ${latest || "unavailable"}; expected at least ${expected} after the Sydney ${dueDay} 12:00 publication deadline`);
   }
 }
 
@@ -62,51 +57,54 @@ export function parseCsv(text) {
   return rows;
 }
 
-export function parseLotterywestCsv(text, { now = new Date() } = {}) {
+export function parseLotterywestCsv(text, { now = new Date(), game = "powerball" } = {}) {
+  const config = getGame(game);
   const [header, ...rawRows] = parseCsv(text);
-  const required = ["Draw number", "Draw date", ...Array.from({ length: 7 }, (_, i) => `Winning Number ${i + 1}`), "Powerball Number"];
+  const required = ["Draw number", "Draw date", ...Array.from({ length: config.mainCount }, (_, i) => `Winning Number ${i + 1}`), ...(config.extraCount === 1 ? ["Powerball Number"] : Array.from({ length: config.extraCount }, (_, i) => `Supplementary Number ${i + 1}`))];
   if (!header || required.some((name, i) => header[i] !== name)) throw new Error("Lotterywest CSV header changed or response is not a results CSV");
   const draws = [], numbers = new Set(), dates = new Set();
   for (const cells of rawRows) {
     if (cells.length < 2) throw new Error("Incomplete CSV draw row");
     const date = parseDrawDate(cells[1]);
-    if (date.toISOString().slice(0, 10) < RULE_START) continue;
-    if (cells.length < 10) throw new Error(`Incomplete CSV draw row for ${cells[1]}`);
+    if (date.toISOString().slice(0, 10) < config.historyStart) continue;
+    if (cells.length < required.length) throw new Error(`Incomplete CSV draw row for ${cells[1]}`);
     if (!/^\d+$/.test(cells[0])) throw new Error("Invalid official draw number");
     const drawNumber = Number(cells[0]);
-    const expectedNumber = FIRST_DRAW_NUMBER + (date - new Date(`${RULE_START}T00:00:00Z`)) / 604800000;
+    const expectedNumber = config.firstDrawNumber + (date - new Date(`${config.firstDate}T00:00:00Z`)) / 604800000;
     if (drawNumber !== expectedNumber) throw new Error(`Draw number/date mismatch: ${drawNumber} on ${cells[1]}`);
-    const row = normalizeRow(cells.slice(1, 10), { now });
+    const row = normalizeRow(cells.slice(1, required.length), { now, game: config });
     if (numbers.has(drawNumber) || dates.has(row[0])) throw new Error(`Duplicate official draw: ${drawNumber}`);
     numbers.add(drawNumber); dates.add(row[0]);
     draws.push({ drawNumber, row });
   }
-  validateRows(draws.map((draw) => draw.row), { now, requireFullHistory: true });
+  validateRows(draws.map((draw) => draw.row), { now, game: config, requireFullHistory: true });
   return draws.sort((a, b) => b.drawNumber - a.drawNumber);
 }
 
-export function mergeDraws(existing, incoming, { now = new Date() } = {}) {
-  const current = validateRows(existing, { now, requireFullHistory: true });
-  const fresh = validateRows(incoming, { now, requireFullHistory: true });
-  if (parseDrawDate(fresh[0][0]) < parseDrawDate(current[0][0])) throw new Error("Source is older than the saved dataset; refusing stale replacement");
+export function mergeDraws(existing, incoming, { now = new Date(), game = "powerball" } = {}) {
+  const config = getGame(game);
+  const current = existing.length ? validateRows(existing, { now, game: config, requireFullHistory: true }) : [];
+  const fresh = validateRows(incoming, { now, game: config, requireFullHistory: true });
+  if (current.length && parseDrawDate(fresh[0][0]) < parseDrawDate(current[0][0])) throw new Error("Source is older than the saved dataset; refusing stale replacement");
   const byDate = new Map(current.map((row) => [row[0], row]));
   for (const row of fresh) {
     const old = byDate.get(row[0]);
     if (old && JSON.stringify(old) !== JSON.stringify(row)) throw new Error(`Official result conflicts with saved draw ${row[0]}; review before correcting history`);
     byDate.set(row[0], row);
   }
-  assertSourceFreshness(fresh, now);
-  return validateRows([...byDate.values()], { now, requireFullHistory: true });
+  assertSourceFreshness(fresh, now, { game: config });
+  return validateRows([...byDate.values()], { now, game: config, requireFullHistory: true });
 }
 
-export async function fetchOfficialDraws({ fetchImpl = fetch, now = new Date() } = {}) {
-  const response = await fetchImpl(CSV_URL, { headers: { Accept: "text/csv" }, signal: AbortSignal.timeout(30000) });
+export async function fetchOfficialDraws({ fetchImpl = fetch, now = new Date(), game = "powerball" } = {}) {
+  const config = getGame(game);
+  const response = await fetchImpl(`https://www.lotterywest.wa.gov.au/api/games/${config.csvGameId}/results-csv`, { headers: { Accept: "text/csv" }, signal: AbortSignal.timeout(30000) });
   if (!response.ok) throw new Error(`Lotterywest download failed (HTTP ${response.status})`);
   const type = response.headers.get("content-type") || "";
   if (!/text\/(?:csv|plain)|application\/(?:csv|octet-stream)/i.test(type)) throw new Error(`Unexpected results content type: ${type}`);
   const text = await response.text();
   if (text.length > 5_000_000) throw new Error("Results response exceeds the expected size");
-  return parseLotterywestCsv(text, { now }).map((draw) => draw.row);
+  return parseLotterywestCsv(text, { now, game: config }).map((draw) => draw.row);
 }
 
 export async function atomicWrite(path, text) {
@@ -115,24 +113,28 @@ export async function atomicWrite(path, text) {
   finally { await rm(temp, { force: true }); }
 }
 
-export async function updateData({ root = resolve(dirname(fileURLToPath(import.meta.url)), ".."), fetchImpl = fetch, now = new Date(), writeAtomic = atomicWrite } = {}) {
-  const dbPath = resolve(root, "db.js"), statusPath = resolve(root, "data-status.json");
+export async function updateData({ root = resolve(dirname(fileURLToPath(import.meta.url)), ".."), fetchImpl = fetch, now = new Date(), writeAtomic = atomicWrite, game = "powerball" } = {}) {
+  const config = getGame(game);
+  const dbPath = resolve(root, config.dbFile), statusPath = resolve(root, config.statusFile);
+  const sourceName = `Lotterywest — official ${config.name} results`;
   const attempt = now.toISOString();
   let original, previous = {}, existing = [], wroteDatabase = false;
   try {
-    original = await readFile(dbPath, "utf8");
-    existing = validateRows(parseDatabase(original), { now, requireFullHistory: true });
+    try {
+      original = await readFile(dbPath, "utf8");
+      existing = validateRows(parseDatabase(original), { now, game: config, requireFullHistory: true });
+    } catch (error) { if (error.code !== "ENOENT") throw error; }
     try {
       const loaded = JSON.parse(await readFile(statusPath, "utf8"));
       if (!loaded || typeof loaded !== "object" || Array.isArray(loaded)) throw new Error("Saved synchronization status must be an object");
       previous = loaded;
     } catch (error) { if (error.code !== "ENOENT") throw error; }
-    const fetched = await fetchOfficialDraws({ fetchImpl, now });
-    const rows = mergeDraws(existing, fetched, { now });
-    const serialized = serializeDatabase(rows);
+    const fetched = await fetchOfficialDraws({ fetchImpl, now, game: config });
+    const rows = mergeDraws(existing, fetched, { now, game: config });
+    const serialized = serializeDatabase(rows, { game: config });
     const added = rows.length - existing.length;
     const status = {
-      sourceName: SOURCE_NAME, sourceUrl: SOURCE_URL, lastAttemptAt: attempt,
+      sourceName, sourceUrl: config.sourceUrl, lastAttemptAt: attempt,
       lastSuccessAt: attempt, latestDrawDate: isoDate(rows[0][0]), status: "ok",
       message: `Verified ${rows.length} draws against official results; added ${added} draws.`, totalDraws: rows.length
     };
@@ -140,9 +142,12 @@ export async function updateData({ root = resolve(dirname(fileURLToPath(import.m
     await writeAtomic(statusPath, `${JSON.stringify(status, null, 2)}\n`);
     return { rows, status, changed: serialized !== original };
   } catch (error) {
-    if (wroteDatabase && original !== undefined) await writeAtomic(dbPath, original);
+    if (wroteDatabase) {
+      if (original !== undefined) await writeAtomic(dbPath, original);
+      else await rm(dbPath, { force: true });
+    }
     const status = {
-      sourceName: SOURCE_NAME, sourceUrl: SOURCE_URL, lastAttemptAt: attempt,
+      sourceName, sourceUrl: config.sourceUrl, lastAttemptAt: attempt,
       lastSuccessAt: previous.lastSuccessAt || null,
       latestDrawDate: existing.length ? isoDate(existing[0][0]) : (previous.latestDrawDate || null),
       status: "error", message: String(error.message).slice(0, 400),
@@ -153,6 +158,31 @@ export async function updateData({ root = resolve(dirname(fileURLToPath(import.m
   }
 }
 
+// Attempt every game before failing the overall Actions job. Each game's saved
+// data, status and last-success timestamp remain independent of other failures.
+export async function updateAllData(options = {}) {
+  const games = options.game ? [getGame(options.game)] : Object.values(GAMES);
+  const results = [], errors = [];
+  for (const game of games) {
+    try { results.push({ game: game.id, ...await updateData({ ...options, game }) }); }
+    catch (error) { errors.push(new Error(`${game.name}: ${error.message}`, { cause: error })); }
+  }
+  if (errors.length) {
+    const failure = new AggregateError(errors, errors.map((error) => error.message).join("; "));
+    failure.results = results;
+    throw failure;
+  }
+  return results;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  updateData().then(({ status }) => console.log(`${status.message} Latest: ${status.latestDrawDate}`)).catch((error) => { console.error(`Update failed; saved draws retained: ${error.message}`); process.exitCode = 1; });
+  const args = process.argv.slice(2);
+  const gameArg = args.find((arg) => arg.startsWith("--game="));
+  const options = gameArg ? { game: gameArg.slice("--game=".length) } : {};
+  if (args.some((arg) => arg !== gameArg) || (gameArg && !options.game)) {
+    console.error("Usage: node scripts/update-data.js [--game=powerball|ozlotto]");
+    process.exitCode = 1;
+  } else {
+    updateAllData(options).then((results) => results.forEach(({ game, status }) => console.log(`${game}: ${status.message} Latest: ${status.latestDrawDate}`))).catch((error) => { console.error(`Update failed; saved draws retained: ${error.message}`); process.exitCode = 1; });
+  }
 }

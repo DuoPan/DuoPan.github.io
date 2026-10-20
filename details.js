@@ -1,16 +1,17 @@
 import { drawStats, frequency, missingStats } from "./analytics.js";
+import { getGame, numbersFor, poolSize, poolRate } from "./games.js";
 
 export const DETAIL_COPY = {
   zh: {
     "detailView.drawTitle": "{date} 开奖详情", "detailView.numberTitle": "{pool} {number}",
-    "detailView.main": "主球", "detailView.pb": "PB", "detailView.mainBalls": "7 个主球",
+    "detailView.main": "主球", "detailView.pb": "PB", "detailView.supplementary": "补充号", "detailView.mainBalls": "{count} 个主球",
     "detailView.numberAction": "查看{pool} {number} 的详情", "detailView.drawAction": "查看 {date} 开奖详情",
     "detailView.watched": "已关注", "detailView.watch": "关注号码", "detailView.unwatch": "取消关注",
     "detailView.watchAction": "关注{pool} {number}", "detailView.unwatchAction": "取消关注{pool} {number}",
     "detailView.sum": "和值", "detailView.average": "平均值", "detailView.oddEven": "奇数 / 偶数",
     "detailView.lowHigh": "小号 / 大号", "detailView.span": "跨度", "detailView.maxRun": "最长连号",
     "detailView.median": "中位数", "detailView.sd": "标准差", "detailView.structure": "本期主球结构",
-    "detailView.structureNote": "结构指标只计算主球。小号为 1–17，大号为 18–35；标准差按本期全部 7 个主球计算。",
+    "detailView.structureNote": "结构指标只计算主球。小号为 1–{lowMax}，大号为 {highMin}–{max}；标准差按本期全部 {count} 个主球计算。",
     "detailView.buckets": "号码区间分布", "detailView.bucketCount": "{count} 个",
     "detailView.sampleTitle": "所选范围内的表现", "detailView.sampleRange": "{from} 至 {to}，共 {count} 期",
     "detailView.count": "出现次数", "detailView.rate": "出现率", "detailView.sample": "样本期数",
@@ -30,14 +31,14 @@ export const DETAIL_COPY = {
   },
   en: {
     "detailView.drawTitle": "Draw details · {date}", "detailView.numberTitle": "{pool} {number}",
-    "detailView.main": "Main ball", "detailView.pb": "Powerball", "detailView.mainBalls": "7 main balls",
+    "detailView.main": "Main ball", "detailView.pb": "Powerball", "detailView.supplementary": "Supplementary numbers", "detailView.mainBalls": "{count} main balls",
     "detailView.numberAction": "View details for {pool} {number}", "detailView.drawAction": "View the {date} draw",
     "detailView.watched": "Watching", "detailView.watch": "Watch number", "detailView.unwatch": "Unwatch",
     "detailView.watchAction": "Watch {pool} {number}", "detailView.unwatchAction": "Unwatch {pool} {number}",
     "detailView.sum": "Sum", "detailView.average": "Average", "detailView.oddEven": "Odd / even",
     "detailView.lowHigh": "Low / high", "detailView.span": "Span", "detailView.maxRun": "Longest consecutive run",
     "detailView.median": "Median", "detailView.sd": "Standard deviation", "detailView.structure": "Main-ball structure",
-    "detailView.structureNote": "Structure statistics use main balls only. Low means 1–17; high means 18–35. Standard deviation uses all seven main balls in this draw.",
+    "detailView.structureNote": "Structure statistics use main balls only. Low means 1–{lowMax}; high means {highMin}–{max}. Standard deviation uses all {count} main balls in this draw.",
     "detailView.buckets": "Number-range distribution", "detailView.bucketCount": "{count} numbers",
     "detailView.sampleTitle": "Within the selected range", "detailView.sampleRange": "{from} to {to}, {count} draws",
     "detailView.count": "Appearances", "detailView.rate": "Draw frequency", "detailView.sample": "Sampled draws",
@@ -58,18 +59,18 @@ export const DETAIL_COPY = {
 };
 
 const percent = (rate) => `${(rate * 100).toFixed(1)}%`;
-const hasNumber = (row, number, pool) => (pool === "pb" ? [row[8]] : row.slice(1, 8)).some((value) => Number(value) === number);
-const checkNumber = (number, pool) => {
-  if (!["main", "pb"].includes(pool)) throw new RangeError("Unknown number pool.");
-  if (!Number.isInteger(number) || number < 1 || number > (pool === "pb" ? 20 : 35)) throw new RangeError("Number is outside the selected pool.");
+const hasNumber = (row, number, pool, game) => numbersFor(row, pool, game).includes(number);
+const checkNumber = (number, pool, game) => {
+  const size = poolSize(pool, game);
+  if (!Number.isInteger(number) || number < 1 || number > size) throw new RangeError("Number is outside the selected pool.");
 };
 
 /** Newest-first input; chronological output; each point uses no later observations. */
-export const rollingFrequency = (rows, number, pool = "main", windowSize = 10) => {
-  checkNumber(number, pool);
+export const rollingFrequency = (rows, number, pool = "main", windowSize = 10, game = "powerball") => {
+  checkNumber(number, pool, game);
   if (!Number.isInteger(windowSize) || windowSize < 1) throw new RangeError("Rolling window must be a positive integer.");
   const chronological = [...rows].reverse();
-  const hits = chronological.map((row) => Number(hasNumber(row, number, pool)));
+  const hits = chronological.map((row) => Number(hasNumber(row, number, pool, game)));
   let count = 0;
   return chronological.map((row, index) => {
     count += hits[index];
@@ -130,7 +131,8 @@ const numberButton = (number, pool, copy, watchlist, onSelect) => {
   return button;
 };
 
-export const renderDrawDetail = ({ row, t, onNumberSelect, watchlist }) => {
+export const renderDrawDetail = ({ row, t, onNumberSelect, watchlist, game = "powerball" }) => {
+  const config = getGame(game);
   const copy = translate(t);
   const body = prepare(copy("detailView.drawTitle", { date: row?.[0] || "—" }));
   if (!body) return null;
@@ -138,15 +140,15 @@ export const renderDrawDetail = ({ row, t, onNumberSelect, watchlist }) => {
     body.appendChild(element("p", copy("detailView.noData"), "detail-note"));
     return body;
   }
-  const main = section(body, copy("detailView.mainBalls"));
+  const main = section(body, copy("detailView.mainBalls", { count: config.mainCount }));
   const balls = element("div", null, "detail-balls");
-  row.slice(1, 8).forEach((number) => balls.appendChild(numberButton(Number(number), "main", copy, watchlist, onNumberSelect)));
+  numbersFor(row, "main", config).forEach((number) => balls.appendChild(numberButton(number, "main", copy, watchlist, onNumberSelect)));
   main.appendChild(balls);
-  const pb = section(body, copy("detailView.pb"));
-  const pbBalls = element("div", null, "detail-balls");
-  pbBalls.appendChild(numberButton(Number(row[8]), "pb", copy, watchlist, onNumberSelect));
-  pb.appendChild(pbBalls);
-  const stats = drawStats(row);
+  const extra = section(body, copy(`detailView.${config.extraPool}`));
+  const extraBalls = element("div", null, "detail-balls");
+  numbersFor(row, config.extraPool, config).forEach((number) => extraBalls.appendChild(numberButton(number, config.extraPool, copy, watchlist, onNumberSelect)));
+  extra.appendChild(extraBalls);
+  const stats = drawStats(row, config);
   const structure = section(body, copy("detailView.structure"));
   metrics(structure, [
     [copy("detailView.sum"), stats.sum], [copy("detailView.average"), stats.average.toFixed(2)],
@@ -154,9 +156,9 @@ export const renderDrawDetail = ({ row, t, onNumberSelect, watchlist }) => {
     [copy("detailView.span"), stats.span], [copy("detailView.maxRun"), stats.maxRun],
     [copy("detailView.median"), stats.median], [copy("detailView.sd"), stats.sd.toFixed(2)]
   ]);
-  structure.appendChild(element("p", copy("detailView.structureNote"), "detail-note"));
+  structure.appendChild(element("p", copy("detailView.structureNote", { lowMax: config.lowMax, highMin: config.lowMax + 1, max: config.mainSize, count: config.mainCount }), "detail-note"));
   const buckets = section(body, copy("detailView.buckets"));
-  metrics(buckets, ["1–10", "11–20", "21–30", "31–35"].map((label, index) => [label, copy("detailView.bucketCount", { count: stats.buckets[index] })]));
+  metrics(buckets, config.buckets.map(([min, max], index) => [`${min}–${max}`, copy("detailView.bucketCount", { count: stats.buckets[index] })]));
   return body;
 };
 
@@ -205,14 +207,15 @@ const frequencyChart = (points, baseline, number, pool, copy) => {
 };
 
 export const renderNumberDetail = ({ number, pool = "main", data = [], asOfData = data, t, watchlist,
-  onDrawSelect, onWatchToggle }) => {
+  onDrawSelect, onWatchToggle, game = "powerball" }) => {
+  const config = getGame(game);
   number = Number(number);
-  checkNumber(number, pool);
+  checkNumber(number, pool, config);
   const copy = translate(t);
   const poolLabel = copy(`detailView.${pool}`);
   const body = prepare(copy("detailView.numberTitle", { pool: poolLabel, number }));
   if (!body) return null;
-  const baseline = pool === "pb" ? 1 / 20 : 7 / 35;
+  const baseline = poolRate(pool, config);
   const watched = (watchlist?.[pool] || []).map(Number).includes(number);
   const watch = element("button", copy(watched ? "detailView.unwatch" : "detailView.watch"), "watch-toggle");
   watch.type = "button";
@@ -226,12 +229,12 @@ export const renderNumberDetail = ({ number, pool = "main", data = [], asOfData 
   const current = section(body, copy("detailView.sampleTitle"));
   if (data.length) current.appendChild(element("p", copy("detailView.sampleRange", { from: data.at(-1)[0], to: data[0][0], count: data.length }), "detail-note"));
   else current.appendChild(element("p", copy("detailView.noData"), "detail-note"));
-  const item = frequency(data, pool)[number - 1];
+  const item = frequency(data, pool, config)[number - 1];
   metrics(current, [[copy("detailView.count"), item.count], [copy("detailView.rate"), data.length ? percent(item.rate) : "—"], [copy("detailView.sample"), data.length], [copy("detailView.baseline"), percent(baseline)]]);
 
   const omission = section(body, copy("detailView.historyTitle"));
   if (asOfData.length) {
-    const missing = missingStats(asOfData, pool)[number - 1];
+    const missing = missingStats(asOfData, pool, config)[number - 1];
     omission.appendChild(element("p", copy("detailView.asOf", { date: asOfData[0][0], count: asOfData.length }), "detail-note"));
     metrics(omission, [[copy("detailView.missing"), `${missing.bounded ? "≥" : ""}${missing.missing}`], [copy("detailView.lastDate"), missing.lastDate || copy("detailView.unseen")], [copy("detailView.maxMissing"), missing.maxMissing === null ? "—" : missing.maxMissing]]);
     omission.appendChild(element("p", copy("detailView.omissionNote"), "detail-note"));
@@ -239,14 +242,14 @@ export const renderNumberDetail = ({ number, pool = "main", data = [], asOfData 
 
   if (data.length) {
     const chart = section(body, copy("detailView.chartTitle"));
-    chart.appendChild(frequencyChart(rollingFrequency(data, number, pool), baseline, number, pool, copy));
+    chart.appendChild(frequencyChart(rollingFrequency(data, number, pool, 10, config), baseline, number, pool, copy));
     chart.appendChild(element("p", copy("detailView.chartNote"), "detail-note"));
     const recent = data.slice(0, 50).reverse();
     const trail = section(body, copy("detailView.timelineTitle", { count: recent.length }));
     trail.appendChild(element("p", copy("detailView.timelineNote"), "detail-note"));
     const timeline = element("div", null, "timeline");
     recent.forEach((row) => {
-      const hit = hasNumber(row, number, pool);
+      const hit = hasNumber(row, number, pool, config);
       const button = element("button", hit ? "●" : "—", `timeline-cell${hit ? " is-hit" : ""}`);
       const label = copy("detailView.timelineAction", { date: row[0], status: copy(hit ? "detailView.hit" : "detailView.miss") });
       button.type = "button";
@@ -259,7 +262,7 @@ export const renderNumberDetail = ({ number, pool = "main", data = [], asOfData 
     trail.appendChild(timeline);
   }
 
-  const appeared = data.filter((row) => hasNumber(row, number, pool));
+  const appeared = data.filter((row) => hasNumber(row, number, pool, config));
   const appearances = section(body, copy("detailView.appearancesTitle", { count: appeared.length }));
   if (!appeared.length) appearances.appendChild(element("p", copy("detailView.noAppearances"), "detail-note"));
   else {

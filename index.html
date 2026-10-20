@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="澳洲 Powerball 历史数据分析：统一统计区间、号码频率、遗漏、趋势和开奖结构。">
+  <meta name="description" content="澳洲 Powerball 与 Oz Lotto 历史数据分析：号码频率、遗漏、趋势和开奖结构。">
   <meta name="theme-color" content="#f5fbff">
   <title>Powerball 历史分析</title>
   <link rel="icon" href="favicon.ico">
@@ -13,7 +13,7 @@
   <a class="skip-link" href="#mainContent" data-i18n="app.skip">跳到分析内容</a>
   <header class="topbar">
     <div class="brand"><h1 data-i18n="title">Powerball 历史分析</h1><p data-i18n="subtitle">澳洲 Powerball · 让历史数据更清楚</p></div>
-    <div class="lang-toggle" role="group" aria-label="Language"><button type="button" data-lang="zh">中文</button><button type="button" data-lang="en">EN</button></div>
+    <div class="header-controls"><label class="field game-picker"><span data-i18n="app.game">彩种</span><select id="gameSelect"><option value="powerball">Powerball</option><option value="ozlotto">Oz Lotto</option></select></label><div class="lang-toggle" role="group" aria-label="Language"><button type="button" data-lang="zh">中文</button><button type="button" data-lang="en">EN</button></div></div>
   </header>
   <main class="app-shell" id="mainContent" tabindex="-1">
     <section class="latest-draw" aria-labelledby="latestLabel">
@@ -48,7 +48,7 @@
       <aside class="context-panel">
         <details id="watchPanel" open><summary data-i18n="app.watchlist">关注号码</summary><p class="muted" data-i18n="app.watchHelp">点击号码查看详情，点星号关注。关注不会改变统计样本。</p><div id="watchlist"></div></details>
         <details id="presetsPanel"><summary data-i18n="app.presets">分析方案</summary><form id="presetForm"><label class="field"><span data-i18n="app.presetName">方案名称</span><input id="presetName" maxlength="40" required></label><button class="button" type="submit" data-i18n="app.savePreset">保存当前条件</button></form><div id="presetList"></div></details>
-        <details><summary data-i18n="app.methods">统计说明</summary><div class="method-notes"><p data-i18n="app.methodFrequency"></p><p data-i18n="app.methodMissing"></p><p data-i18n="app.methodRandom"></p><a href="https://help.thelott.com/hc/en-us/articles/4416863320217-How-do-I-play-the-Powerball-game" target="_blank" rel="noopener noreferrer" data-i18n="app.rules">官方玩法说明 ↗</a></div></details>
+        <details><summary data-i18n="app.methods">统计说明</summary><div class="method-notes"><p data-i18n="app.methodFrequency"></p><p data-i18n="app.methodMissing"></p><p data-i18n="app.methodRandom"></p><a id="rulesLink" href="https://www.lotterywest.wa.gov.au/games/powerball" target="_blank" rel="noopener noreferrer" data-i18n="app.rules">官方玩法说明 ↗</a></div></details>
       </aside>
     </div>
     <footer class="footer"><span data-i18n="app.footer">历史统计 · 主球 7/35 · Powerball 1/20</span><span id="archiveSummary"></span></footer>

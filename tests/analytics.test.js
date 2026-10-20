@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseDate, dateISO, normalizeRows, selectRange, frequency, missingStats, drawStats, trendStats, pairStats } from "../analytics.js";
+import { GAMES, poolRate } from "../games.js";
 
 const draw = (date, main = [1, 2, 3, 4, 5, 6, 7], pb = 1) => [date, ...main, pb];
 const history = (count) => normalizeRows(Array.from({ length: count }, (_, index) =>
@@ -153,4 +154,108 @@ test("pair statistics cover all 595 combinations with without-replacement expect
   assert.ok(Math.abs(pairs[0].expected - (7 / 35) * (6 / 34) * 2) < 1e-12);
   assert.equal(pairStats([])[0].expected, 0);
   assert.equal(pairStats([])[0].rate, 0);
+});
+
+const ozDraw = (date, main = [1, 2, 3, 4, 5, 6, 47], supplementary = [8, 9, 10]) => [date, ...main, ...supplementary];
+
+test("Oz Lotto normalization accepts 47 and independently sorts both groups without mutation", () => {
+  const source = [ozDraw("7/1/25", ["47", 6, 5, 4, 3, 2, 1], ["10", 9, 8]), ozDraw("2025-01-14")];
+  const before = JSON.stringify(source);
+  const rows = normalizeRows(source, GAMES.ozlotto);
+  assert.deepEqual(rows, [ozDraw("14/01/2025"), ozDraw("07/01/2025")]);
+  assert.equal(JSON.stringify(source), before);
+  assert.deepEqual(normalizeRows([], "ozlotto"), []);
+});
+
+test("Oz Lotto normalization rejects repeated supplementary balls, cross-group repeats and invalid ranges", () => {
+  for (const row of [
+    ozDraw("2025-01-07", undefined, [8, 8, 9]),
+    ozDraw("2025-01-07", undefined, [1, 8, 9]),
+    ozDraw("2025-01-07", undefined, [8, 9, 48]),
+    ozDraw("2025-01-07", [1, 2, 3, 4, 5, 6, 48]),
+    ozDraw("2025-01-07", undefined, [8, 9, 0]),
+    ozDraw("2025-01-07", undefined, [8, 9, 10.5]),
+    ozDraw("2025-01-07").slice(0, 10),
+    [...ozDraw("2025-01-07"), 11]
+  ]) assert.throws(() => normalizeRows([row], "ozlotto"));
+  assert.throws(() => normalizeRows([ozDraw("2025-01-07"), ozDraw("7/1/2025")], "ozlotto"));
+  // Powerball's two independently drawn pools can still share a number.
+  assert.deepEqual(normalizeRows([draw("2025-01-09", undefined, 1)])[0], draw("09/01/2025", undefined, 1));
+});
+
+test("Oz Lotto frequency covers 47 numbers per pool and uses draw counts as denominators", () => {
+  const rows = [ozDraw("2025-01-14"), ozDraw("2025-01-07", [2, 3, 4, 5, 6, 7, 8], [1, 9, 47])];
+  const main = frequency(rows, "main", "ozlotto");
+  const extra = frequency(rows, "supplementary", GAMES.ozlotto);
+  assert.equal(main.length, 47);
+  assert.equal(extra.length, 47);
+  assert.equal(main[46].rate, 0.5);
+  assert.equal(extra[46].rate, 0.5);
+  assert.equal(main[0].count, 1);
+  assert.equal(extra[0].count, 1);
+  assert.equal(extra[8].rate, 1);
+  assert.equal(main.reduce((total, item) => total + item.count, 0), 14);
+  assert.equal(extra.reduce((total, item) => total + item.count, 0), 6);
+  assert.equal(poolRate("main", "ozlotto"), 7 / 47);
+  assert.equal(poolRate("supplementary", "ozlotto"), 3 / 47);
+  assert.equal(frequency([], "supplementary", "ozlotto")[46].rate, 0);
+  assert.throws(() => frequency([], "pb", "ozlotto"));
+  assert.throws(() => missingStats([], "supplementary"));
+});
+
+test("Oz Lotto omissions use only observed history and preserve unseen lower bounds in each pool", () => {
+  const rows = normalizeRows([
+    ozDraw("2025-01-07", undefined, [8, 9, 46]),
+    ozDraw("2025-01-14", [1, 2, 3, 4, 5, 6, 7], [8, 9, 10]),
+    ozDraw("2025-01-21", [1, 2, 3, 4, 5, 6, 46], [8, 9, 47])
+  ], "ozlotto");
+  const range = selectRange(rows, { window: "custom", dateFrom: "2025-01-14", dateTo: "2025-01-14" });
+  const main = missingStats(range.asOfData, "main", "ozlotto");
+  const extra = missingStats(range.asOfData, "supplementary", "ozlotto");
+  assert.deepEqual(main[46], { number: 47, missing: 1, lastDate: "07/01/2025", bounded: false, maxMissing: null });
+  assert.deepEqual(extra[46], { number: 47, missing: 2, lastDate: null, bounded: true, maxMissing: null });
+  assert.equal(extra[45].missing, 1);
+  assert.equal(extra[7].missing, 0);
+});
+
+test("Oz Lotto draw structure uses 23/24 boundary and five tens buckets, excluding supplementary numbers", () => {
+  const row = ozDraw("2025-01-07", [47, 40, 24, 23, 11, 10, 1], [2, 3, 4]);
+  const stats = drawStats(row, "ozlotto");
+  assert.equal(stats.sum, 156);
+  assert.equal(stats.average, 156 / 7);
+  assert.equal(stats.low, 4);
+  assert.equal(stats.high, 3);
+  assert.deepEqual(stats.buckets, [2, 1, 2, 1, 1]);
+  assert.equal(stats.odds, 4);
+  assert.equal(stats.evens, 3);
+  assert.equal(stats.span, 46);
+  assert.equal(stats.median, 23);
+  assert.equal(stats.maxRun, 2);
+  assert.equal(row[1], 47);
+});
+
+test("Oz Lotto trend comparisons isolate supplementary numbers and retain partial-window semantics", () => {
+  const recent = ozDraw("2025-01-14", undefined, [8, 9, 10]);
+  const previous = ozDraw("2025-01-07", [1, 2, 3, 4, 5, 6, 7], [8, 9, 47]);
+  const rows = [recent, recent, previous];
+  const extra = trendStats(rows, "supplementary", 2, "ozlotto");
+  assert.equal(extra.items.length, 47);
+  assert.equal(extra.recentSize, 2);
+  assert.equal(extra.previousSize, 1);
+  assert.equal(extra.items[46].delta, -100);
+  assert.equal(extra.items[9].delta, 100);
+  assert.equal(trendStats(rows, "main", 2, "ozlotto").items[46].delta, 100);
+  assert.equal(trendStats([recent], "supplementary", 2, "ozlotto").items[46].previousRate, null);
+});
+
+test("Oz Lotto pairs cover all 1081 combinations and exclude supplementary co-occurrences", () => {
+  const rows = [ozDraw("2025-01-07"), ozDraw("2025-01-14", [1, 2, 3, 4, 5, 7, 47], [8, 9, 10])];
+  const pairs = pairStats(rows, GAMES.ozlotto);
+  assert.equal(pairs.length, 1081);
+  assert.equal(new Set(pairs.map(({ a, b }) => `${a},${b}`)).size, 1081);
+  assert.equal(pairs.reduce((total, pair) => total + pair.count, 0), 42);
+  assert.equal(pairs.find(({ a, b }) => a === 1 && b === 47).count, 2);
+  assert.equal(pairs.find(({ a, b }) => a === 8 && b === 9).count, 0);
+  assert.equal(pairs[0].expected, 2 * (7 / 47) * (6 / 46));
+  assert.equal(pairStats([], "ozlotto").at(-1).rate, 0);
 });

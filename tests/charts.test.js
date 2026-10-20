@@ -76,3 +76,31 @@ test("the complete selected range is retained beyond the former 100-draw limit",
   assert.equal(series.points[0].row, rows.at(-1));
   assert.equal(series.points.at(-1).row, rows[0]);
 });
+
+test("Oz Lotto charts count all three supplementary numbers separately from main numbers", () => {
+  const row = ["13/10/2026", 1, 11, 21, 23, 24, 41, 47, 2, 3, 46];
+  const stats = summarizeCharts([row], "ozlotto");
+  assert.equal(stats.mainTotal, 7);
+  assert.equal(stats.extraTotal, 3);
+  assert.equal(stats.odd, 6);
+  assert.equal(stats.even, 1);
+  assert.equal(stats.low, 4);
+  assert.equal(stats.high, 3);
+  assert.equal(stats.extraOdd, 1);
+  assert.equal(stats.extraEven, 2);
+  assert.deepEqual(stats.buckets, [1, 1, 3, 0, 2]);
+  assert.deepEqual(stats.expectedBuckets, [70 / 47, 70 / 47, 70 / 47, 70 / 47, 49 / 47]);
+  assert.equal(stats.pbOdd + stats.pbEven, 0);
+  assert.deepEqual(summarizeCharts([], "ozlotto").expectedBuckets, [0, 0, 0, 0, 0]);
+});
+
+test("Oz Lotto sum trends use the theoretical mean of 168", () => {
+  const row = ["13/10/2026", 1, 11, 21, 23, 24, 41, 47, 2, 3, 46];
+  const series = buildSumTrend([row], "ozlotto");
+  assert.equal(series.points[0].sum, 168);
+  assert.equal(series.points[0].y, series.referenceY);
+  assert.ok(series.min < 168 && series.max > 168);
+  const lowSample = buildSumTrend([["13/10/2026", 1, 2, 3, 4, 5, 6, 7, 8, 9, 47]], "ozlotto");
+  assert.ok(lowSample.max > 168);
+  assert.ok(lowSample.referenceY >= lowSample.top && lowSample.referenceY <= lowSample.bottom);
+});

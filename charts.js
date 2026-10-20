@@ -1,26 +1,30 @@
 ﻿import { parseDate, drawStats } from "./analytics.js";
 
+import { getGame, numbersFor } from "./games.js";
+
 export const CHART_COPY = {
   zh: {
     "chart.oddEven": "主球奇偶比例", "chart.lowHigh": "主球大小比例", "chart.pbOddEven": "PB 奇偶比例",
+    "chart.supplementaryOddEven": "补充号奇偶比例", "chart.pbNumbers": "PB", "chart.supplementaryNumbers": "补充号",
     "chart.range": "主球区间分布", "chart.sumTrend": "和值走势", "chart.odd": "奇数", "chart.even": "偶数",
-    "chart.low": "小号 1–17", "chart.high": "大号 18–35", "chart.actual": "实际", "chart.expected": "理论期望",
+    "chart.low": "小号 1–{lowMax}", "chart.high": "大号 {highMin}–{max}", "chart.actual": "实际", "chart.expected": "理论期望",
     "chart.count": "次", "chart.samples": "样本期数",
     "chart.referenceNote": "竖线表示理论比例；历史偏差不代表下一期概率变化。",
-    "chart.rangeNote": "期望次数按每组号码数量计算：10、10、10、5。",
+    "chart.rangeNote": "期望次数按每组号码数量计算：{bucketSizes}。",
     "chart.trendHelp": "悬停或聚焦查看数据；左右方向键切换，点击或回车打开单期详情。手机可横向滑动。",
-    "chart.sumReference": "理论平均和值 126", "chart.drawPicker": "查看某期", "chart.openDraw": "打开单期详情",
+    "chart.sumReference": "理论平均和值 {mean}", "chart.drawPicker": "查看某期", "chart.openDraw": "打开单期详情",
     "chart.mainNumbers": "主球", "chart.empty": "当前范围没有开奖记录，请调整时间范围。", "chart.sum": "和值"
   },
   en: {
     "chart.oddEven": "Main ball parity", "chart.lowHigh": "Main ball low / high", "chart.pbOddEven": "Powerball parity",
+    "chart.supplementaryOddEven": "Supplementary number parity", "chart.pbNumbers": "Powerball", "chart.supplementaryNumbers": "Supplementary numbers",
     "chart.range": "Main ball ranges", "chart.sumTrend": "Sum over time", "chart.odd": "Odd", "chart.even": "Even",
-    "chart.low": "Low 1–17", "chart.high": "High 18–35", "chart.actual": "Observed", "chart.expected": "Expected",
+    "chart.low": "Low 1–{lowMax}", "chart.high": "High {highMin}–{max}", "chart.actual": "Observed", "chart.expected": "Expected",
     "chart.count": "occurrences", "chart.samples": "Draws in sample",
     "chart.referenceNote": "Markers show theoretical shares. Historical deviations do not change next-draw probabilities.",
-    "chart.rangeNote": "Expected counts use each range’s size: 10, 10, 10 and 5 numbers.",
+    "chart.rangeNote": "Expected counts use each range’s size: {bucketSizes} numbers.",
     "chart.trendHelp": "Hover or focus to inspect; use arrow keys to move and click or Enter for draw details. Swipe horizontally on mobile.",
-    "chart.sumReference": "Expected mean sum 126", "chart.drawPicker": "Inspect a draw", "chart.openDraw": "Open draw details",
+    "chart.sumReference": "Expected mean sum {mean}", "chart.drawPicker": "Inspect a draw", "chart.openDraw": "Open draw details",
     "chart.mainNumbers": "Main balls", "chart.empty": "No draws in this range. Adjust the date range to continue.", "chart.sum": "Sum"
   }
 };
@@ -32,23 +36,27 @@ const percent = (value) => `${(value * 100).toFixed(1)}%`;
 const expectedCount = (value) => Number.isInteger(value) ? String(value) : value.toFixed(1);
 
 /** Main-ball counts are appearances, so their denominator is seven times the draw count. */
-export const summarizeCharts = (data) => {
-  const summary = { draws: data.length, mainTotal: data.length * 7, odd: 0, even: 0, low: 0, high: 0, pbOdd: 0, pbEven: 0, buckets: [0, 0, 0, 0] };
+export const summarizeCharts = (data, game = "powerball") => {
+  const config = getGame(game);
+  const summary = { draws: data.length, mainTotal: data.length * config.mainCount, extraTotal: data.length * config.extraCount, odd: 0, even: 0, low: 0, high: 0, extraOdd: 0, extraEven: 0, pbOdd: 0, pbEven: 0, buckets: config.buckets.map(() => 0) };
   data.forEach((row) => {
-    const stats = drawStats(row);
+    const stats = drawStats(row, config);
     summary.odd += stats.odds;
     summary.even += stats.evens;
     summary.low += stats.low;
     summary.high += stats.high;
     stats.buckets.forEach((count, index) => { summary.buckets[index] += count; });
-    summary[Number(row[8]) % 2 ? "pbOdd" : "pbEven"] += 1;
+    numbersFor(row, config.extraPool, config).forEach((number) => { summary[number % 2 ? "extraOdd" : "extraEven"] += 1; });
   });
-  summary.expectedBuckets = [10, 10, 10, 5].map((size) => summary.mainTotal * size / 35);
+  if (config.extraPool === "pb") { summary.pbOdd = summary.extraOdd; summary.pbEven = summary.extraEven; }
+  summary.expectedBuckets = config.buckets.map(([min, max]) => summary.mainTotal * (max - min + 1) / config.mainSize);
   return summary;
 };
 
 /** Place points on a real time axis, preserving longer gaps between draw dates. */
-export const buildSumTrend = (data) => {
+export const buildSumTrend = (data, game = "powerball") => {
+  const config = getGame(game);
+  const mean = config.mainCount * (config.mainSize + 1) / 2;
   const rows = [...data].sort((a, b) => Number(parseDate(a[0])) - Number(parseDate(b[0])));
   // Keep an overview of the entire selected period, including the full archive.
   // The draw picker and keyboard navigation make dense observations accessible.
@@ -59,10 +67,10 @@ export const buildSumTrend = (data) => {
   const top = 28;
   const bottom = height - 50;
   if (!rows.length) return { rows, points: [], ticks: [], width, height, left, right, top, bottom, min: 0, max: 0 };
-  const sums = rows.map((row) => drawStats(row).sum);
-  // Include the theoretical mean (7 × 18) so every range has a visible reference.
-  const min = Math.floor((Math.min(126, ...sums) - 5) / 10) * 10;
-  const max = Math.ceil((Math.max(126, ...sums) + 5) / 10) * 10;
+  const sums = rows.map((row) => drawStats(row, config).sum);
+  // Include the game's theoretical mean so every range has a visible reference.
+  const min = Math.floor((Math.min(mean, ...sums) - 5) / 10) * 10;
+  const max = Math.ceil((Math.max(mean, ...sums) + 5) / 10) * 10;
   const firstDate = Number(parseDate(rows[0][0]));
   const lastDate = Number(parseDate(rows.at(-1)[0]));
   const y = (value) => bottom - (value - min) / (max - min) * (bottom - top);
@@ -74,7 +82,7 @@ export const buildSumTrend = (data) => {
   // Date labels follow sampled real draws rather than synthetic draw indexes.
   const tickCount = Math.min(rows.length, Math.max(2, Math.floor(width / 170)));
   const tickIndexes = new Set(Array.from({ length: tickCount }, (_, index) => Math.round(index * (rows.length - 1) / Math.max(1, tickCount - 1))));
-  return { rows, points, ticks: [...tickIndexes].map((index) => points[index]), width, height, left, right, top, bottom, min, max, referenceY: y(126) };
+  return { rows, points, ticks: [...tickIndexes].map((index) => points[index]), width, height, left, right, top, bottom, min, max, referenceY: y(mean) };
 };
 
 const sampleText = (rows, t) => `${t("chart.samples")}: ${rows.length}${rows.length ? ` · ${rows[0][0]} — ${rows.at(-1)[0]}` : ""}`;
@@ -91,7 +99,9 @@ const buildComparison = (label, count, total, theoretical, t) => {
   </div>`;
 };
 
-const buildLine = (series, t) => {
+const buildLine = (series, t, game) => {
+  const config = getGame(game);
+  const extraLabel = t(`chart.${config.extraPool}Numbers`);
   const { points, ticks, width, height, left, right, top, bottom, min, max, referenceY } = series;
   const description = `${t("chart.samples")}: ${points.length}; ${points[0].row[0]} — ${points.at(-1).row[0]}; ${t("chart.sumReference")}. ${t("chart.trendHelp")}`;
   const yTicks = Array.from({ length: 5 }, (_, index) => {
@@ -110,7 +120,7 @@ const buildLine = (series, t) => {
       <text x="${left}" y="16" class="chart-axis-label">${escapeHTML(t("chart.sum"))}</text>
       ${ticks.map((point, index) => `<text x="${point.x}" y="${bottom + 24}" text-anchor="${ticks.length === 1 ? "middle" : index === 0 ? "start" : index === ticks.length - 1 ? "end" : "middle"}" class="chart-axis-label">${escapeHTML(point.row[0])}</text>`).join("")}
       <polyline points="${points.map(({ x, y }) => `${x},${y}`).join(" ")}" fill="none" stroke="#168574" stroke-width="2"></polyline>
-      ${points.map((point, index) => `<g class="chart-point${index === points.length - 1 ? " is-selected" : ""}" data-chart-index="${index}" tabindex="${index === points.length - 1 ? "0" : "-1"}" role="button" aria-label="${escapeHTML(`${point.row[0]}, ${t("chart.mainNumbers")} ${point.row.slice(1, 8).join(", ")}, PB ${point.row[8]}, ${t("chart.sum")} ${point.sum}, ${t("chart.openDraw")}`)}">
+      ${points.map((point, index) => `<g class="chart-point${index === points.length - 1 ? " is-selected" : ""}" data-chart-index="${index}" tabindex="${index === points.length - 1 ? "0" : "-1"}" role="button" aria-label="${escapeHTML(`${point.row[0]}, ${t("chart.mainNumbers")} ${numbersFor(point.row, "main", config).join(", ")}, ${extraLabel} ${numbersFor(point.row, config.extraPool, config).join(", ")}, ${t("chart.sum")} ${point.sum}, ${t("chart.openDraw")}`)}">
         <title>${escapeHTML(`${point.row[0]} · ${t("chart.sum")}: ${point.sum}`)}</title>
         <circle cx="${point.x}" cy="${point.y}" r="10" fill="transparent"></circle>
         <circle class="chart-dot" cx="${point.x}" cy="${point.y}" r="4" fill="#168574" stroke="#ffffff" stroke-width="1.5"></circle>
@@ -119,7 +129,13 @@ const buildLine = (series, t) => {
   </div>`;
 };
 
-const renderCharts = ({ data, t, onDrawSelect }) => {
+const renderCharts = ({ data, t: sourceTranslate, onDrawSelect, game = "powerball" }) => {
+  const config = getGame(game);
+  const values = { lowMax: config.lowMax, highMin: config.lowMax + 1, max: config.mainSize, mean: config.mainCount * (config.mainSize + 1) / 2, bucketSizes: config.buckets.map(([min, max]) => max - min + 1).join(", ") };
+  const t = (key) => {
+    const translated = sourceTranslate?.(key, values);
+    return (!translated || translated === key ? CHART_COPY.en[key] || key : translated).replace(/\{(\w+)\}/g, (match, name) => values[name] ?? match);
+  };
   const wrapper = document.getElementById("wrapper");
   const container = document.createElement("div");
   container.className = "table remove charts-view";
@@ -128,25 +144,25 @@ const renderCharts = ({ data, t, onDrawSelect }) => {
     wrapper.appendChild(container);
     return;
   }
-  const summary = summarizeCharts(data);
-  const series = buildSumTrend(data);
+  const summary = summarizeCharts(data, config);
+  const series = buildSumTrend(data, config);
   const sample = escapeHTML(sampleText(series.rows, t));
   const ratioCard = (title, comparisons) => `<section class="chart-card"><h3 class="chart-title">${escapeHTML(t(title))}</h3><p class="chart-meta">${sample}</p>${comparisons}</section>`;
   container.innerHTML = `
     <p class="chart-summary">${escapeHTML(t("chart.referenceNote"))}</p>
     <div class="chart-grid pies">
-      ${ratioCard("chart.oddEven", buildComparison(t("chart.odd"), summary.odd, summary.mainTotal, 18 / 35, t) + buildComparison(t("chart.even"), summary.even, summary.mainTotal, 17 / 35, t))}
-      ${ratioCard("chart.lowHigh", buildComparison(t("chart.low"), summary.low, summary.mainTotal, 17 / 35, t) + buildComparison(t("chart.high"), summary.high, summary.mainTotal, 18 / 35, t))}
-      ${ratioCard("chart.pbOddEven", buildComparison(t("chart.odd"), summary.pbOdd, summary.draws, 0.5, t) + buildComparison(t("chart.even"), summary.pbEven, summary.draws, 0.5, t))}
+      ${ratioCard("chart.oddEven", buildComparison(t("chart.odd"), summary.odd, summary.mainTotal, Math.ceil(config.mainSize / 2) / config.mainSize, t) + buildComparison(t("chart.even"), summary.even, summary.mainTotal, Math.floor(config.mainSize / 2) / config.mainSize, t))}
+      ${ratioCard("chart.lowHigh", buildComparison(t("chart.low"), summary.low, summary.mainTotal, config.lowMax / config.mainSize, t) + buildComparison(t("chart.high"), summary.high, summary.mainTotal, (config.mainSize - config.lowMax) / config.mainSize, t))}
+      ${ratioCard(`chart.${config.extraPool === "pb" ? "pbOddEven" : "supplementaryOddEven"}`, buildComparison(t("chart.odd"), summary.extraOdd, summary.extraTotal, Math.ceil(config.extraSize / 2) / config.extraSize, t) + buildComparison(t("chart.even"), summary.extraEven, summary.extraTotal, Math.floor(config.extraSize / 2) / config.extraSize, t))}
     </div>
     <div class="chart-grid">
       <section class="chart-card chart-wide"><h3 class="chart-title">${escapeHTML(t("chart.range"))}</h3><p class="chart-meta">${sample}</p>
-        <div class="chart-buckets">${["1–10", "11–20", "21–30", "31–35"].map((label, index) => buildComparison(label, summary.buckets[index], summary.mainTotal, [10, 10, 10, 5][index] / 35, t)).join("")}</div>
+        <div class="chart-buckets">${config.buckets.map(([min, max], index) => buildComparison(`${min}–${max}`, summary.buckets[index], summary.mainTotal, (max - min + 1) / config.mainSize, t)).join("")}</div>
         <p class="chart-meta">${escapeHTML(t("chart.rangeNote"))}</p>
       </section>
       <section class="chart-card chart-wide"><h3 class="chart-title">${escapeHTML(t("chart.sumTrend"))}</h3><p class="chart-meta">${sample}</p>
         <p class="chart-meta">${escapeHTML(t("chart.trendHelp"))}</p>
-        ${buildLine(series, t)}
+        ${buildLine(series, t, config)}
         <p class="chart-meta chart-mean-caption">${escapeHTML(t("chart.sumReference"))}</p>
         <div class="chart-inspector">
           <label for="chartDrawSelect">${escapeHTML(t("chart.drawPicker"))}</label>
@@ -166,7 +182,7 @@ const renderCharts = ({ data, t, onDrawSelect }) => {
     selectedIndex = index;
     const { row, sum } = series.points[index];
     select.value = String(index);
-    observation.textContent = `${row[0]} · ${t("chart.mainNumbers")}: ${row.slice(1, 8).join(" · ")} · PB: ${row[8]} · ${t("chart.sum")}: ${sum}`;
+    observation.textContent = `${row[0]} · ${t("chart.mainNumbers")}: ${numbersFor(row, "main", config).join(" · ")} · ${t(`chart.${config.extraPool}Numbers`)}: ${numbersFor(row, config.extraPool, config).join(" · ")} · ${t("chart.sum")}: ${sum}`;
     pointElements.forEach((point, pointIndex) => {
       point.classList.toggle("is-selected", pointIndex === index);
       point.setAttribute("tabindex", pointIndex === index ? "0" : "-1");

@@ -1,11 +1,12 @@
 import { frequency, missingStats, pairStats, trendStats } from "./analytics.js";
+import { getGame, poolKeys, poolRate } from "./games.js";
 
 export const NUMBER_COPY = {
   zh: {
     "numbers.number": "号码", "numbers.count": "出现次数", "numbers.rate": "出现率",
     "numbers.expected": "理论期望次数", "numbers.watch": "关注", "numbers.watching": "已关注",
     "numbers.watchAdd": "关注号码 {number}", "numbers.watchRemove": "取消关注号码 {number}",
-    "numbers.detail": "查看{pool} {number} 的详情", "numbers.main": "主球", "numbers.pb": "PB",
+    "numbers.detail": "查看{pool} {number} 的详情", "numbers.main": "主球", "numbers.pb": "PB", "numbers.supplementary": "补充号",
     "numbers.sample": "当前统计 {count} 期", "numbers.reference": "单个{pool}每期的理论出现率为 {rate}。历史频率不代表下期概率。",
     "numbers.hotCaption": "{pool}出现频率", "numbers.missingCaption": "{pool}遗漏统计",
     "numbers.trendCaption": "{pool}短期出现频率比较", "numbers.pairsCaption": "主球两两共现",
@@ -18,15 +19,15 @@ export const NUMBER_COPY = {
     "numbers.comparison": "比较最近 {recent} 期与再之前 {previous} 期；两个样本均取自当前所选范围。",
     "numbers.shortSample": "比较窗口样本不足 10 期，请谨慎解释差异。",
     "numbers.noComparison": "无前窗口样本", "numbers.noData": "该范围没有开奖数据。",
-    "numbers.pair": "号码对", "numbers.pairsMeta": "共有 595 种主球号码对；当前显示 {shown} 种。理论期望按每期 7/35 × 6/34 × 样本期数计算。",
+    "numbers.pair": "号码对", "numbers.pairsMeta": "共有 {total} 种主球号码对；当前显示 {shown} 种。理论期望按每期 {count}/{size} × {otherCount}/{otherSize} × 样本期数计算。",
     "numbers.pairsCaution": "同时出现的历史次数描述样本，不代表下一期更容易一起出现。",
-    "numbers.showAll": "显示全部 595 对", "numbers.showTop": "仅显示前 30 对"
+    "numbers.showAll": "显示全部 {total} 对", "numbers.showTop": "仅显示前 30 对"
   },
   en: {
     "numbers.number": "Number", "numbers.count": "Appearances", "numbers.rate": "Draw frequency",
     "numbers.expected": "Expected appearances", "numbers.watch": "Watch", "numbers.watching": "Watching",
     "numbers.watchAdd": "Watch number {number}", "numbers.watchRemove": "Unwatch number {number}",
-    "numbers.detail": "View details for {pool} {number}", "numbers.main": "main ball", "numbers.pb": "Powerball",
+    "numbers.detail": "View details for {pool} {number}", "numbers.main": "main ball", "numbers.pb": "Powerball", "numbers.supplementary": "supplementary number",
     "numbers.sample": "Current sample: {count} draws", "numbers.reference": "The theoretical chance of a particular {pool} appearing in each draw is {rate}. Historical frequency does not change the next draw's probability.",
     "numbers.hotCaption": "{pool} draw frequencies", "numbers.missingCaption": "{pool} omission statistics",
     "numbers.trendCaption": "{pool} short-term frequency comparison", "numbers.pairsCaption": "Main-ball pair appearances",
@@ -39,9 +40,9 @@ export const NUMBER_COPY = {
     "numbers.comparison": "Comparing the latest {recent} draws with the preceding {previous}; both samples stay inside the selected range.",
     "numbers.shortSample": "At least one comparison window has fewer than 10 draws; interpret the difference cautiously.",
     "numbers.noComparison": "No preceding sample", "numbers.noData": "No draws in this range.",
-    "numbers.pair": "Number pair", "numbers.pairsMeta": "There are 595 possible main-ball pairs; showing {shown}. Expected appearances are 7/35 × 6/34 × the number of sampled draws.",
+    "numbers.pair": "Number pair", "numbers.pairsMeta": "There are {total} possible main-ball pairs; showing {shown}. Expected appearances are {count}/{size} × {otherCount}/{otherSize} × the number of sampled draws.",
     "numbers.pairsCaution": "Past co-occurrence describes this sample; it does not make a pair more likely in the next draw.",
-    "numbers.showAll": "Show all 595 pairs", "numbers.showTop": "Show only the first 30 pairs"
+    "numbers.showAll": "Show all {total} pairs", "numbers.showTop": "Show only the first 30 pairs"
   }
 };
 
@@ -88,16 +89,14 @@ const sortedItems = (items, sort, fallback) => [...items].sort((a, b) => {
 });
 
 export default function renderNumberView({ view, data = [], asOfData = data, pool = "main", sort, t,
-  watchlist = { main: [], pb: [] }, onNumberSelect, onWatchToggle }) {
+  watchlist = {}, onNumberSelect, onWatchToggle, game = "powerball" }) {
+  const config = getGame(game);
   const wrapper = document.getElementById("wrapper");
   if (!wrapper) return null;
   const copy = translate(t);
   const section = element("section", null, `number-view number-view-${view} remove`);
   const poolLabel = copy(`numbers.${pool}`);
-  const watched = {
-    main: new Set((watchlist.main || []).map(Number)),
-    pb: new Set((watchlist.pb || []).map(Number))
-  };
+  const watched = Object.fromEntries(poolKeys(config).map((key) => [key, new Set((watchlist[key] || []).map(Number))]));
   const note = (text, className = "analysis-note") => section.appendChild(element("p", text, className));
   const numberButton = (number, numberPool = pool) => {
     const button = element("button", number, "number-button");
@@ -153,11 +152,11 @@ export default function renderNumberView({ view, data = [], asOfData = data, poo
 
   if (view === "hot") {
     note(copy("numbers.sample", { count: data.length }));
-    const baseline = pool === "pb" ? 1 / 20 : 7 / 35;
+    const baseline = poolRate(pool, config);
     note(copy("numbers.reference", { pool: poolLabel, rate: percent(baseline) }));
     const body = createTable(section, copy("numbers.hotCaption", { pool: poolLabel }),
       ["number", "count", "rate", "expected", "watch"].map((key) => copy(`numbers.${key}`)));
-    sortedItems(frequency(data, pool), sort, "count").forEach((item) => {
+    sortedItems(frequency(data, pool, config), sort, "count").forEach((item) => {
       appendRow(body, item.number, [item.count, percent(item.rate), (data.length * baseline).toFixed(1)]);
     });
   } else if (view === "missing") {
@@ -165,7 +164,7 @@ export default function renderNumberView({ view, data = [], asOfData = data, poo
     note(copy("numbers.missingBoundary"));
     const body = createTable(section, copy("numbers.missingCaption", { pool: poolLabel }),
       ["number", "missing", "lastDate", "maxMissing", "watch"].map((key) => copy(`numbers.${key}`)));
-    sortedItems(missingStats(asOfData, pool), sort, "missing").forEach((item) => {
+    sortedItems(missingStats(asOfData, pool, config), sort, "missing").forEach((item) => {
       appendRow(body, item.number, [
         `${item.bounded ? "≥" : ""}${item.missing}`,
         item.lastDate || copy("numbers.notObserved"),
@@ -175,10 +174,10 @@ export default function renderNumberView({ view, data = [], asOfData = data, poo
     });
   } else if (view === "trend") {
     note(copy("numbers.windowMeta"));
-    const comparison = trendStats(data, pool, 10);
+    const comparison = trendStats(data, pool, 10, config);
     note(copy("numbers.comparison", { recent: comparison.recentSize, previous: comparison.previousSize }));
     if (comparison.recentSize < 10 || comparison.previousSize < 10) note(copy("numbers.shortSample"));
-    const windows = [10, 20, 50].map((size) => ({ size: Math.min(size, data.length), counts: frequency(data.slice(0, size), pool) }));
+    const windows = [10, 20, 50].map((size) => ({ size: Math.min(size, data.length), counts: frequency(data.slice(0, size), pool, config) }));
     const headings = [copy("numbers.number"), ...[10, 20, 50].map((window) => copy("numbers.window", { window })), copy("numbers.change"), copy("numbers.watch")];
     const body = createTable(section, copy("numbers.trendCaption", { pool: poolLabel }), headings);
     sortedItems(comparison.items, sort, "rate").forEach((item) => {
@@ -192,14 +191,15 @@ export default function renderNumberView({ view, data = [], asOfData = data, poo
     const meta = note("");
     note(copy("numbers.pairsCaution"));
     const body = createTable(section, copy("numbers.pairsCaption"), ["pair", "count", "rate", "expected"].map((key) => copy(`numbers.${key}`)));
-    const items = pairStats(data).sort((a, b) => (sort === "number_asc" ? 0 : b.count - a.count) || a.a - b.a || a.b - b.b);
+    const items = pairStats(data, config).sort((a, b) => (sort === "number_asc" ? 0 : b.count - a.count) || a.a - b.a || a.b - b.b);
+    const pairValues = { total: items.length, count: config.mainCount, size: config.mainSize, otherCount: config.mainCount - 1, otherSize: config.mainSize - 1 };
     let showAll = false;
     const toggle = element("button", null, "button-secondary pairs-toggle");
     toggle.type = "button";
     const paint = () => {
       body.replaceChildren();
       const visible = showAll ? items : items.slice(0, 30);
-      meta.textContent = copy("numbers.pairsMeta", { shown: visible.length });
+      meta.textContent = copy("numbers.pairsMeta", { ...pairValues, shown: visible.length });
       visible.forEach((item) => {
         const row = element("tr");
         const pair = element("th", null, "pair-numbers");
@@ -208,7 +208,7 @@ export default function renderNumberView({ view, data = [], asOfData = data, poo
         row.append(pair, element("td", item.count), element("td", percent(item.rate)), element("td", item.expected.toFixed(2)));
         body.appendChild(row);
       });
-      toggle.textContent = copy(showAll ? "numbers.showTop" : "numbers.showAll");
+      toggle.textContent = copy(showAll ? "numbers.showTop" : "numbers.showAll", pairValues);
       toggle.setAttribute("aria-expanded", String(showAll));
     };
     toggle.addEventListener("click", () => { showAll = !showAll; paint(); });

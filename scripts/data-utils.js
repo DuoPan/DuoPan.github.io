@@ -1,4 +1,6 @@
-// Powerball's current seven-from-35 format started with draw 1144.
+import { getGame } from "../games.js";
+
+// Compatibility exports for existing Powerball callers.
 export const RULE_START = "2018-04-19";
 export const FIRST_DRAW_NUMBER = 1144;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -30,23 +32,29 @@ function numberInRange(value, min, max, label) {
   return number;
 }
 
-export function normalizeRow(row, { now = new Date() } = {}) {
-  if (!Array.isArray(row) || row.length !== 9) throw new Error("Each draw must contain a date, seven main numbers and one Powerball");
+export function normalizeRow(row, { now = new Date(), game = "powerball" } = {}) {
+  const config = getGame(game);
+  if (!Array.isArray(row) || row.length !== 1 + config.mainCount + config.extraCount) throw new Error(`Each draw must contain a date, seven main numbers and ${config.extraCount === 1 ? "one Powerball" : "three supplementary numbers"}`);
   const date = parseDrawDate(row[0]);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
   const iso = date.toISOString().slice(0, 10);
-  if (iso < RULE_START) throw new Error(`Draw ${row[0]} predates the current Powerball rules`);
+  if (iso < config.ruleStart) throw new Error(`Draw ${row[0]} predates the current ${config.name} rules`);
+  if (iso < config.historyStart) throw new Error(`Draw ${row[0]} predates the ${config.name} collection start ${config.historyStart}`);
   if (iso > today) throw new Error(`Future draw date: ${row[0]}`);
-  if (date.getUTCDay() !== 4) throw new Error(`Draw date is not Thursday: ${row[0]}`);
-  const main = row.slice(1, 8).map((n) => numberInRange(n, 1, 35, "Main number")).sort((a, b) => a - b);
-  if (new Set(main).size !== 7) throw new Error(`Duplicate main number in draw ${row[0]}`);
-  const pb = numberInRange(row[8], 1, 20, "Powerball");
-  return [displayDate(date), ...main, pb];
+  const weekday = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][config.drawDay];
+  if (date.getUTCDay() !== config.drawDay) throw new Error(`Draw date is not ${weekday}: ${row[0]}`);
+  const main = row.slice(1, 1 + config.mainCount).map((n) => numberInRange(n, 1, config.mainSize, "Main number")).sort((a, b) => a - b);
+  if (new Set(main).size !== config.mainCount) throw new Error(`Duplicate main number in draw ${row[0]}`);
+  const extra = row.slice(1 + config.mainCount).map((n) => numberInRange(n, 1, config.extraSize, config.extraCount === 1 ? "Powerball" : "Supplementary number")).sort((a, b) => a - b);
+  if (new Set(extra).size !== config.extraCount) throw new Error(`Duplicate supplementary number in draw ${row[0]}`);
+  if (config.disjoint && extra.some((n) => main.includes(n))) throw new Error(`Main and supplementary numbers overlap in draw ${row[0]}`);
+  return [displayDate(date), ...main, ...extra];
 }
 
-export function validateRows(data, { now = new Date(), requireCanonical = false, requireFullHistory = false } = {}) {
+export function validateRows(data, { now = new Date(), requireCanonical = false, requireFullHistory = false, game = "powerball" } = {}) {
+  const config = getGame(game);
   if (!Array.isArray(data) || data.length === 0) throw new Error("Draw dataset must not be empty");
-  const rows = data.map((row) => normalizeRow(row, { now }));
+  const rows = data.map((row) => normalizeRow(row, { now, game: config }));
   const dates = new Set();
   for (const row of rows) {
     if (dates.has(row[0])) throw new Error(`Duplicate draw date: ${row[0]}`);
@@ -58,13 +66,15 @@ export function validateRows(data, { now = new Date(), requireCanonical = false,
       throw new Error(`Missing weekly draw between ${rows[i][0]} and ${rows[i - 1][0]}`);
     }
   }
-  if (requireFullHistory && isoDate(rows.at(-1)[0]) !== RULE_START) throw new Error(`History must include the first current-rule draw on ${RULE_START}`);
-  if (requireCanonical && JSON.stringify(data) !== JSON.stringify(rows)) throw new Error("Dataset must use DD/MM/YYYY, numeric values, ascending main numbers and newest-first rows");
+  if (requireFullHistory && isoDate(rows.at(-1)[0]) !== config.firstDate) throw new Error(`History must include the first ${config.id === "powerball" ? "current-rule" : "collected"} draw on ${config.firstDate}`);
+  if (requireCanonical && JSON.stringify(data) !== JSON.stringify(rows)) throw new Error("Dataset must use DD/MM/YYYY, numeric values, ascending main and supplementary numbers and newest-first rows");
   return rows;
 }
 
-export function serializeDatabase(rows) {
-  return `// Australian Powerball: current rules from ${RULE_START}.\n// Official results: https://www.lotterywest.wa.gov.au/results/frequency-charts\nexport default [\n${rows.map((row) => `  ${JSON.stringify(row)}`).join(",\n")}\n];\n`;
+export function serializeDatabase(rows, { game = "powerball" } = {}) {
+  const config = getGame(game);
+  const collection = config.historyStart !== config.ruleStart ? ` Collection from ${config.historyStart}.` : "";
+  return `// Australian ${config.name}: current rules from ${config.ruleStart}.${collection}\n// Official results: ${config.sourceUrl}\nexport default [\n${rows.map((row) => `  ${JSON.stringify(row)}`).join(",\n")}\n];\n`;
 }
 
 // Read the data literal without evaluating JavaScript from a file or network.

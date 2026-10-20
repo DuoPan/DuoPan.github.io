@@ -4,7 +4,7 @@ import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseDrawDate, normalizeRow, validateRows, serializeDatabase, parseDatabase } from "../scripts/data-utils.js";
-import { parseCsv, parseLotterywestCsv, mergeDraws, fetchOfficialDraws, updateData, expectedLatestDrawDate, assertSourceFreshness, atomicWrite } from "../scripts/update-data.js";
+import { parseCsv, parseLotterywestCsv, mergeDraws, fetchOfficialDraws, updateData, updateAllData, expectedLatestDrawDate, assertSourceFreshness, atomicWrite } from "../scripts/update-data.js";
 
 const now = new Date("2018-05-10T15:00:00Z");
 const first = ["19/04/2018", 4, 5, 9, 13, 25, 32, 33, 7];
@@ -182,4 +182,131 @@ test("status write failure after replacing the database rolls its bytes back bef
   assert.equal(status.status, "error");
   assert.equal(status.totalDraws, 2);
   assert.equal(status.lastSuccessAt, "2018-04-27T00:00:00.000Z");
+});
+
+const ozNow = new Date("2025-01-21T00:00:00Z");
+const ozFirst = ["07/01/2025", 1, 2, 3, 4, 5, 6, 47, 8, 9, 10];
+const ozSecond = ["14/01/2025", 1, 3, 5, 7, 11, 19, 46, 2, 8, 47];
+const ozThird = ["21/01/2025", 1, 2, 3, 4, 5, 6, 7, 8, 9, 47];
+const ozHeader = ["Draw number", "Draw date", ...Array.from({ length: 7 }, (_, i) => `Winning Number ${i + 1}`), ...Array.from({ length: 3 }, (_, i) => `Supplementary Number ${i + 1}`)].join(",");
+const ozCsv = (rows = [ozFirst, ozSecond]) => `${ozHeader}\n${rows.map((row) => [1612 + (parseDrawDate(row[0]) - parseDrawDate(ozFirst[0])) / 604800000, ...row].join(",")).join("\n")}\n`;
+
+test("Oz Lotto supports 47 and sorts all three supplementary balls independently", () => {
+  const row = [ozFirst[0], ...ozFirst.slice(1, 8).reverse(), 10, 8, 9];
+  assert.deepEqual(normalizeRow(row, { game: "ozlotto", now: ozNow }), ozFirst);
+  assert.deepEqual(parseLotterywestCsv(ozCsv([row, ozSecond]), { game: "ozlotto", now: ozNow }).map(({ row: value }) => value), [ozSecond, ozFirst]);
+  assert.throws(() => normalizeRow([ozFirst[0], 48, ...ozFirst.slice(2)], { game: "ozlotto", now: ozNow }), /between 1 and 47/);
+  assert.throws(() => normalizeRow([...ozFirst.slice(0, 8), 8, 8, 10], { game: "ozlotto", now: ozNow }), /Duplicate supplementary/);
+  assert.throws(() => normalizeRow([...ozFirst.slice(0, 8), 1, 8, 10], { game: "ozlotto", now: ozNow }), /overlap/);
+  assert.throws(() => normalizeRow(["09/01/2025", ...ozFirst.slice(1)], { game: "ozlotto", now: ozNow }), /not Tuesday/);
+});
+
+test("Oz Lotto import fixes the collection start and enforces draw numbers and gap-free weeks", () => {
+  const options = { game: "ozlotto", now: ozNow };
+  const older = "1611,31/12/2024,1,2,3,4,5,6,7,8,9,10\n";
+  assert.equal(parseLotterywestCsv(ozCsv() + older, options).length, 2);
+  assert.throws(() => parseLotterywestCsv(ozCsv().replace("1613,", "1614,"), options), /mismatch/);
+  assert.throws(() => parseLotterywestCsv(ozCsv([ozFirst, ozThird]), options), /Missing weekly/);
+  assert.throws(() => parseLotterywestCsv(ozCsv([ozSecond]), options), /first collected draw on 2025-01-07/);
+  assert.throws(() => parseLotterywestCsv(ozCsv([ozFirst, ozFirst]), options), /Duplicate official/);
+});
+
+test("Oz Lotto Wednesday noon deadline follows Sydney daylight saving", () => {
+  const cases = [
+    ["2026-09-08T00:00:00Z", "2026-09-01"], // Tuesday
+    ["2026-09-09T01:59:59Z", "2026-09-01"], // Wednesday before noon AEST
+    ["2026-09-09T02:00:00Z", "2026-09-08"],
+    ["2026-10-07T00:59:59Z", "2026-09-29"], // Wednesday before noon AEDT
+    ["2026-10-07T01:00:00Z", "2026-10-06"],
+    ["2026-10-03T15:59:59Z", "2026-09-29"],
+    ["2026-10-03T16:00:00Z", "2026-09-29"],
+    ["2026-04-01T01:00:00Z", "2026-03-31"],
+    ["2026-04-08T01:59:59Z", "2026-03-31"],
+    ["2026-04-08T02:00:00Z", "2026-04-07"]
+  ];
+  for (const [time, expected] of cases) assert.equal(expectedLatestDrawDate(new Date(time), { game: "ozlotto" }), expected, time);
+  assert.doesNotThrow(() => assertSourceFreshness([ozSecond, ozFirst], new Date("2025-01-22T00:59:59Z"), { game: "ozlotto" }));
+  assert.throws(() => assertSourceFreshness([ozSecond, ozFirst], new Date("2025-01-22T01:00:00Z"), { game: "ozlotto" }), /Wednesday 12:00/);
+});
+
+async function emptyFixture(t) {
+  const root = await mkdtemp(join(tmpdir(), "lottery-bootstrap-test-"));
+  t.after(async () => { await rm(root, { recursive: true, force: true }); });
+  return root;
+}
+
+test("first Oz Lotto import creates its database and status without a saved dataset", async (t) => {
+  const root = await emptyFixture(t);
+  let requested;
+  const result = await updateData({ root, game: "ozlotto", now: ozNow, fetchImpl: async (url) => { requested = url; return response(ozCsv()); } });
+  assert.match(requested, /\/5130\/results-csv$/);
+  assert.deepEqual(result.rows, [ozSecond, ozFirst]);
+  assert.equal(result.status.totalDraws, 2);
+  assert.match(result.status.sourceName, /Oz Lotto/);
+  assert.deepEqual(parseDatabase(await readFile(join(root, "db-ozlotto.js"), "utf8")), result.rows);
+  assert.equal(JSON.parse(await readFile(join(root, "data-status-ozlotto.json"), "utf8")).latestDrawDate, "2025-01-14");
+  await assert.rejects(readFile(join(root, "db.js")), { code: "ENOENT" });
+});
+
+test("failed initial import never creates a partial database", async (t) => {
+  const root = await emptyFixture(t);
+  await assert.rejects(updateData({ root, game: "ozlotto", now: ozNow, fetchImpl: async () => response(ozCsv([ozSecond])) }), /first collected/);
+  await assert.rejects(readFile(join(root, "db-ozlotto.js")), { code: "ENOENT" });
+  const status = JSON.parse(await readFile(join(root, "data-status-ozlotto.json"), "utf8"));
+  assert.equal(status.status, "error");
+  assert.equal(status.lastSuccessAt, null);
+  assert.equal(status.totalDraws, 0);
+});
+
+test("failed bootstrap status write restores the database's original absence", async (t) => {
+  const root = await emptyFixture(t);
+  let failed = false;
+  const writeAtomic = async (path, text) => {
+    if (path.endsWith("data-status-ozlotto.json") && !failed) { failed = true; throw new Error("Simulated status write failure"); }
+    await atomicWrite(path, text);
+  };
+  await assert.rejects(updateData({ root, game: "ozlotto", now: ozNow, fetchImpl: async () => response(ozCsv()), writeAtomic }), /status write failure/);
+  await assert.rejects(readFile(join(root, "db-ozlotto.js")), { code: "ENOENT" });
+  assert.equal(JSON.parse(await readFile(join(root, "data-status-ozlotto.json"), "utf8")).status, "error");
+});
+
+test("a Powerball failure still updates Oz Lotto and reports the combined job failure", async (t) => {
+  const { root, original } = await fixture(t);
+  const requested = [];
+  const fetchImpl = async (url) => {
+    requested.push(url);
+    if (url.includes("/5132/")) throw new Error("Powerball unavailable");
+    return response(ozCsv());
+  };
+  await assert.rejects(updateAllData({ root, now: ozNow, fetchImpl }), (error) => {
+    assert.ok(error instanceof AggregateError);
+    assert.match(error.message, /Powerball unavailable/);
+    assert.equal(error.results[0].game, "ozlotto");
+    return true;
+  });
+  assert.equal(requested.length, 2);
+  assert.equal(await readFile(join(root, "db.js"), "utf8"), original);
+  assert.equal(JSON.parse(await readFile(join(root, "data-status.json"), "utf8")).lastSuccessAt, "2018-04-27T00:00:00.000Z");
+  assert.equal(JSON.parse(await readFile(join(root, "data-status-ozlotto.json"), "utf8")).status, "ok");
+});
+
+test("an Oz Lotto failure retains its history after Powerball updates successfully", async (t) => {
+  const root = await emptyFixture(t);
+  const ozOriginal = serializeDatabase([ozSecond, ozFirst], { game: "ozlotto" });
+  await writeFile(join(root, "db-ozlotto.js"), ozOriginal);
+  await writeFile(join(root, "data-status-ozlotto.json"), JSON.stringify({ lastSuccessAt: "2025-01-15T02:00:00.000Z" }));
+  const pbRows = [];
+  for (let date = parseDrawDate(first[0]); date <= new Date("2025-01-16T00:00:00Z"); date.setUTCDate(date.getUTCDate() + 7)) {
+    pbRows.push([`${String(date.getUTCDate()).padStart(2, "0")}/${String(date.getUTCMonth() + 1).padStart(2, "0")}/${date.getUTCFullYear()}`, ...first.slice(1)]);
+  }
+  const fetchImpl = async (url) => {
+    if (url.includes("/5130/")) throw new Error("Oz Lotto unavailable");
+    return response(csv(pbRows));
+  };
+  await assert.rejects(updateAllData({ root, now: ozNow, fetchImpl }), /Oz Lotto unavailable/);
+  assert.equal(JSON.parse(await readFile(join(root, "data-status.json"), "utf8")).latestDrawDate, "2025-01-16");
+  assert.equal(await readFile(join(root, "db-ozlotto.js"), "utf8"), ozOriginal);
+  const status = JSON.parse(await readFile(join(root, "data-status-ozlotto.json"), "utf8"));
+  assert.equal(status.status, "error");
+  assert.equal(status.lastSuccessAt, "2025-01-15T02:00:00.000Z");
 });
