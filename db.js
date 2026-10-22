@@ -1,6 +1,7 @@
 // Australian Powerball: current rules from 2018-04-19.
 // Official results: https://www.lotterywest.wa.gov.au/results/frequency-charts
 export default [
+  ["22/10/2026",4,13,20,22,26,33,34,13],
   ["15/10/2026",3,14,15,24,27,30,32,16],
   ["08/10/2026",7,8,10,12,15,19,20,7],
   ["01/10/2026",2,3,6,10,11,16,24,14],
