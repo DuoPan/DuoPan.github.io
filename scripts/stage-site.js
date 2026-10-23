@@ -13,5 +13,5 @@ for (const entry of await readdir(root, { withFileTypes: true })) {
   if (includeFile || includeDirectory) await cp(resolve(root, entry.name), resolve(target, entry.name), { recursive: true });
 }
 await stat(resolve(target, "index.html"));
-for (const file of ["db.js", "db-ozlotto.js", "data-status.json", "data-status-ozlotto.json", "games.js"]) await stat(resolve(target, file));
+for (const file of ["db.js", "db-ozlotto.js", "data-status.json", "data-status-ozlotto.json", "games.js", "oz-lab-7f3c.html", "oz-prediction-page.js", "oz-prediction.js", "oz-prediction-store.js", "css/oz-prediction.css"]) await stat(resolve(target, file));
 console.log("Static site prepared in _site.");

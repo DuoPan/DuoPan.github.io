@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#f5fbff">
+  <title>Oz Lotto 预测</title>
+  <link rel="icon" href="favicon.ico">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/oz-prediction.css">
+</head>
+<body class="prediction-page">
+  <a class="skip-link" href="#predictionMain">跳到预测内容</a>
+  <header class="prediction-brand"><h1>Oz Lotto 预测</h1><p>手动生成 · 按期留存</p></header>
+  <main class="prediction-shell" id="predictionMain">
+    <section aria-labelledby="predictionHeading">
+      <h2 class="prediction-heading" id="predictionHeading">为下一期，留下一份有依据的选择。</h2>
+      <p class="prediction-intro">根据开奖历史，生成可解释的号码组合。</p>
+      <div class="prediction-context">
+        <div><span>目标开奖</span><strong id="targetContext">正在读取…</strong></div>
+        <div><span>历史样本</span><strong id="sourceContext">正在读取…</strong></div>
+      </div>
+      <div class="prediction-actions">
+        <button class="button primary prediction-start" id="startPrediction" type="button" disabled>开始预测</button>
+        <span class="prediction-count">4 组 · 每组 7 个主号</span>
+        <span class="muted" id="actionHelp">点击后生成并保存本期预测</span>
+      </div>
+      <p class="prediction-message" id="dataMessage" role="status" hidden></p>
+      <p class="prediction-message" id="storageMessage" role="alert" hidden></p>
+      <p class="prediction-feedback" id="feedback" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="prediction-results" aria-labelledby="resultsHeading" aria-busy="false" id="resultsSection">
+      <div class="prediction-section-heading">
+        <div><h2 id="resultsHeading">本期推荐</h2><p class="muted" id="recordContext">尚未生成预测</p></div>
+        <div class="record-actions" id="recordActions" hidden>
+          <button class="button" id="copyPrediction" type="button">复制号码</button>
+          <button class="button" id="exportSelected" type="button">导出此版</button>
+        </div>
+      </div>
+      <div id="predictionGroups" class="prediction-grid">
+        <div class="prediction-empty"><p>让这一次选择，有迹可循。</p><span>点击“开始预测”，查看四组号码及各自的历史依据。打开页面不会自动生成。</span></div>
+      </div>
+      <div class="prediction-evaluation" id="evaluation" hidden></div>
+      <p class="prediction-snapshot-note" id="snapshotNote" hidden></p>
+    </section>
+
+    <section class="prediction-archive" aria-labelledby="archiveHeading">
+      <div class="prediction-section-heading archive-heading">
+        <div><h2 id="archiveHeading">预测档案</h2><p class="muted" id="archiveCount">还没有保存的记录</p></div>
+        <div class="record-actions">
+          <button class="button" type="button" id="exportAll" disabled>导出备份</button>
+          <button class="button" type="button" id="importBackup">导入备份</button>
+          <input type="file" id="backupFile" accept=".json,application/json" hidden aria-label="选择预测备份 JSON 文件">
+        </div>
+      </div>
+      <div class="prediction-table-wrap">
+        <table class="prediction-table">
+          <thead><tr><th scope="col">目标期数</th><th scope="col">生成时间 · 悉尼</th><th scope="col">版本 / 状态</th><th scope="col"><span class="sr-only">查看记录</span></th></tr></thead>
+          <tbody id="archiveRows"><tr><td colspan="4" class="archive-empty">开始预测后，记录会按期数保留在这里。</td></tr></tbody>
+        </table>
+      </div>
+      <button type="button" class="button archive-more" id="showMore" hidden>显示更多记录</button>
+      <p class="prediction-storage-note">档案保存在当前浏览器，不会上传或跨设备同步。更换设备或清理浏览器前，请导出备份。再次生成会新增版本。</p>
+    </section>
+
+    <footer class="prediction-footer">
+      <p>历史统计不改变公平开奖中每一组号码的理论概率。这里的解释说明选号依据，不代表中奖概率提高。</p>
+      <details><summary>选号与记录说明</summary><p>四种规则分别观察近 30 期频率、前后两个 10 期窗口的变化、当前遗漏及分散结构。每组从 1–47 中选 7 个主号；Oz Lotto 的补充号由开奖产生，不是另外选择的号码。组间最多重合 3 个号码。</p><p>预测只在点击按钮后执行。数据过期或目标开奖日悉尼时间 19:00 后尚无新结果时暂停生成，这个时间是本页保守的事前截止线。新数据收录后，可以查看旧记录的主号、补充号命中和奖级。</p><p>本地记录与备份可被编辑，仅供个人复盘。此地址未设置登录保护。</p></details>
+    </footer>
+  </main>
+  <noscript><p class="prediction-shell">请启用 JavaScript 后使用手动预测与本地保存。</p></noscript>
+  <script type="module" src="./oz-prediction-page.js"></script>
+</body>
+</html>
