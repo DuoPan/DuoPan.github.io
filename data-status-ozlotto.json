@@ -1,8 +1,8 @@
 {
   "sourceName": "Lotterywest — official Oz Lotto results",
   "sourceUrl": "https://www.lotterywest.wa.gov.au/results/frequency-charts",
-  "lastAttemptAt": "2026-11-06T20:25:50.601Z",
-  "lastSuccessAt": "2026-11-06T20:25:50.601Z",
+  "lastAttemptAt": "2026-11-07T18:44:04.104Z",
+  "lastSuccessAt": "2026-11-07T18:44:04.104Z",
   "latestDrawDate": "2026-11-03",
   "status": "ok",
   "message": "Verified 96 draws against official results; added 0 draws.",
