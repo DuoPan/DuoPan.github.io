@@ -1,8 +1,8 @@
 {
   "sourceName": "Lotterywest — official Powerball results",
   "sourceUrl": "https://www.lotterywest.wa.gov.au/results/frequency-charts",
-  "lastAttemptAt": "2026-11-16T23:22:23.956Z",
-  "lastSuccessAt": "2026-11-16T23:22:23.956Z",
+  "lastAttemptAt": "2026-11-17T22:17:01.650Z",
+  "lastSuccessAt": "2026-11-17T22:17:01.650Z",
   "latestDrawDate": "2026-11-12",
   "status": "ok",
   "message": "Verified 448 draws against official results; added 0 draws.",
