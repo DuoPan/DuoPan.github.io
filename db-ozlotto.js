@@ -1,6 +1,7 @@
 // Australian Oz Lotto: current rules from 2022-05-17. Collection from 2025-01-01.
 // Official results: https://www.lotterywest.wa.gov.au/results/frequency-charts
 export default [
+  ["24/11/2026",5,7,19,24,29,35,36,1,4,33],
   ["17/11/2026",3,8,27,32,36,45,47,15,24,35],
   ["10/11/2026",4,22,25,34,38,46,47,17,20,27],
   ["03/11/2026",7,18,19,22,27,30,38,3,23,45],
